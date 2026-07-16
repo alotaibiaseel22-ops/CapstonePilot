@@ -32,8 +32,8 @@ test('no console errors or warnings during a full project + share flow', async (
 
   await page.getByRole('button', { name: 'Share' }).click()
   const modal = page.getByRole('dialog', { name: 'Share Project' })
-  await expect(modal.getByRole('button', { name: /Copy Invite Link/ })).toBeVisible()
-  await modal.getByRole('button', { name: /Copy Invite Link/ }).click()
+  await expect(modal.getByRole('button', { name: /Copy Link/ })).toBeVisible()
+  await modal.getByRole('button', { name: /Copy Link/ }).click()
   await page.keyboard.press('Escape')
 
   await page.getByRole('link', { name: 'Back to Projects' }).click()

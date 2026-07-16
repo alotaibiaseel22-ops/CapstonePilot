@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowRightLeft, Copy, MoreVertical, RotateCw, UserX, X } from 'lucide-react'
+import { Copy, MoreVertical, RotateCw, User, UserX, X } from 'lucide-react'
 import { Modal } from '@/shared/components/ui/modal'
 import { ConfirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { Badge } from '@/shared/components/ui/badge'
@@ -15,7 +15,7 @@ import {
   useRevokeInvitation,
 } from '@/features/invitations/hooks/useInvitations'
 import { InviteByEmailForm } from '@/features/invitations/components/InviteByEmailForm'
-import { InviteLinkCard } from '@/features/invitations/components/InviteLinkCard'
+import { InviteLinkSection } from '@/features/invitations/components/InviteLinkSection'
 
 function initialsOf(text) {
   return text
@@ -34,13 +34,43 @@ function formatRelative(value) {
   return `${days} days ago`
 }
 
-function AccessRow({ name, email, badge, badgeVariant, menu }) {
+function copyEmail(email) {
+  navigator.clipboard.writeText(email)
+  toast.success('Email copied')
+}
+
+function RowMenu({ label, children }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2.5" data-testid="access-row">
+    <DropdownMenu
+      trigger={(triggerProps) => (
+        <button
+          type="button"
+          aria-label={label}
+          className="rounded-md p-1 text-gray-400 hover:bg-white hover:text-gray-700"
+          {...triggerProps}
+        >
+          <MoreVertical className="size-4" />
+        </button>
+      )}
+    >
+      {children}
+    </DropdownMenu>
+  )
+}
+
+function AccessRow({ name, email, isYou, badge, badgeVariant, menu }) {
+  return (
+    <div
+      data-testid="access-row"
+      className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted"
+    >
       <div className="flex min-w-0 items-center gap-3">
         <Avatar initials={initialsOf(name || email)} className="shrink-0" />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-gray-900">{name || email}</p>
+          <p className="truncate text-sm font-semibold text-gray-900">
+            {name || email}
+            {isYou && <span className="font-normal text-muted-foreground"> (You)</span>}
+          </p>
           {name && <p className="truncate text-xs text-muted-foreground">{email}</p>}
         </div>
       </div>
@@ -76,13 +106,23 @@ function ShareModal({ open, onClose, project }) {
     : []
 
   async function handleConfirmRemove() {
-    await removeMember.mutateAsync(removingMember.user_id)
-    setRemovingMember(null)
+    try {
+      await removeMember.mutateAsync(removingMember.user_id)
+      setRemovingMember(null)
+    } catch {
+      // Error toast is already shown by the mutation's onError; leave the
+      // dialog open so the owner can see it and retry or cancel.
+    }
   }
 
   async function handleConfirmCancel() {
-    await revokeInvitation.mutateAsync(cancellingInvitation.id)
-    setCancellingInvitation(null)
+    try {
+      await revokeInvitation.mutateAsync(cancellingInvitation.id)
+      setCancellingInvitation(null)
+    } catch {
+      // Error toast is already shown by the mutation's onError; leave the
+      // dialog open so the owner can see it and retry or cancel.
+    }
   }
 
   function copyEmailInviteLink(token) {
@@ -92,67 +132,53 @@ function ShareModal({ open, onClose, project }) {
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title="Share Project" className="max-w-xl">
+      <Modal
+        open={open}
+        onClose={onClose}
+        title="Share Project"
+        description="Invite teammates or share a secure link to collaborate."
+        className="max-w-xl"
+      >
         <div className="space-y-6">
           {isOwner && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Anyone with this link can join this project.
-              </p>
-              <InviteLinkCard
+            <>
+              <InviteLinkSection
                 projectId={project.id}
                 linkInvitation={linkInvitation}
                 linkEverExisted={linkEverExisted}
                 isLoading={invitationsLoading}
               />
 
-              <div>
-                <p className="mb-2 text-xs font-semibold tracking-wide text-gray-500">
-                  OPTIONAL — INVITE BY EMAIL
-                </p>
+              <div className="border-t border-border pt-6">
+                <h3 className="mb-2 text-sm font-semibold text-gray-900">
+                  Invite by Email <span className="font-normal text-muted-foreground">(Optional)</span>
+                </h3>
                 <InviteByEmailForm projectId={project.id} />
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Email invitations are optional. The invite link above is the primary way to
-                  share this project.
-                </p>
               </div>
-            </div>
+            </>
           )}
 
-          <div>
-            <p className="mb-1 text-xs font-semibold tracking-wide text-gray-500">
-              PEOPLE WITH ACCESS
-            </p>
+          <div className={isOwner ? 'border-t border-border pt-6' : ''}>
+            <h3 className="mb-2 text-sm font-semibold text-gray-900">People with Access</h3>
             <div className="divide-y divide-border">
               <AccessRow
                 name={project.owner_name}
                 email={project.owner_email}
+                isYou={isOwner}
                 badge="Owner"
                 badgeVariant="purple"
                 menu={
-                  isOwner && (
-                    <DropdownMenu
-                      trigger={(triggerProps) => (
-                        <button
-                          type="button"
-                          aria-label="Owner actions"
-                          className="rounded-md p-1 text-gray-400 hover:bg-muted hover:text-gray-700"
-                          {...triggerProps}
-                        >
-                          <MoreVertical className="size-4" />
-                        </button>
-                      )}
+                  <RowMenu label="Owner actions">
+                    <DropdownMenuItem icon={Copy} onClick={() => copyEmail(project.owner_email)}>
+                      Copy Email
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      icon={User}
+                      onClick={() => toast.info('Profile view is coming soon.')}
                     >
-                      <DropdownMenuItem
-                        icon={ArrowRightLeft}
-                        onClick={() =>
-                          toast.info("Transfer ownership before leaving. This isn't available yet.")
-                        }
-                      >
-                        Transfer ownership before leaving
-                      </DropdownMenuItem>
-                    </DropdownMenu>
-                  )
+                      View Profile
+                    </DropdownMenuItem>
+                  </RowMenu>
                 }
               />
 
@@ -160,99 +186,68 @@ function ShareModal({ open, onClose, project }) {
                 <p className="py-3 text-sm text-muted-foreground">Loading collaborators...</p>
               )}
 
-              {members?.map((member) => (
-                <AccessRow
-                  key={member.user_id}
-                  name={member.name}
-                  email={member.email}
-                  badge="Accepted"
-                  badgeVariant="success"
-                  menu={
-                    isOwner && (
-                      <DropdownMenu
-                        trigger={(triggerProps) => (
-                          <button
-                            type="button"
-                            aria-label={`Actions for ${member.name}`}
-                            className="rounded-md p-1 text-gray-400 hover:bg-muted hover:text-gray-700"
-                            {...triggerProps}
+              {members?.map((member) => {
+                const isYou = member.user_id === user?.id
+                return (
+                  <AccessRow
+                    key={member.user_id}
+                    name={member.name}
+                    email={member.email}
+                    isYou={isYou}
+                    badge="Member"
+                    badgeVariant="success"
+                    menu={
+                      <RowMenu label={`Actions for ${member.name}`}>
+                        {isOwner && !isYou && (
+                          <DropdownMenuItem
+                            icon={UserX}
+                            destructive
+                            onClick={() => setRemovingMember(member)}
                           >
-                            <MoreVertical className="size-4" />
-                          </button>
+                            Remove from Project
+                          </DropdownMenuItem>
                         )}
-                      >
-                        <DropdownMenuItem
-                          icon={UserX}
-                          destructive
-                          onClick={() => setRemovingMember(member)}
-                        >
-                          Remove from project
+                        <DropdownMenuItem icon={Copy} onClick={() => copyEmail(member.email)}>
+                          Copy Email
                         </DropdownMenuItem>
-                      </DropdownMenu>
-                    )
-                  }
-                />
-              ))}
-
-              {pendingEmailInvitations.map((invitation) => (
-                <AccessRow
-                  key={invitation.id}
-                  name={null}
-                  email={invitation.email}
-                  badge="Pending"
-                  badgeVariant="warning"
-                  menu={
-                    <DropdownMenu
-                      trigger={(triggerProps) => (
-                        <button
-                          type="button"
-                          aria-label={`Actions for ${invitation.email}`}
-                          className="rounded-md p-1 text-gray-400 hover:bg-muted hover:text-gray-700"
-                          {...triggerProps}
+                        <DropdownMenuItem
+                          icon={User}
+                          onClick={() => toast.info('Profile view is coming soon.')}
                         >
-                          <MoreVertical className="size-4" />
-                        </button>
-                      )}
-                    >
-                      <DropdownMenuItem
-                        icon={X}
-                        destructive
-                        onClick={() => setCancellingInvitation(invitation)}
-                      >
-                        Cancel Invitation
-                      </DropdownMenuItem>
-                    </DropdownMenu>
-                  }
-                />
-              ))}
-
-              {!membersLoading &&
-                members?.length === 0 &&
-                pendingEmailInvitations.length === 0 && (
-                  <p className="py-3 text-sm text-muted-foreground">
-                    No collaborators yet. Share the invite link above to add people.
-                  </p>
-                )}
+                          View Profile
+                        </DropdownMenuItem>
+                      </RowMenu>
+                    }
+                  />
+                )
+              })}
             </div>
+
+            {!membersLoading && members?.length === 0 && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Only you have access to this project. Share the invite link to start
+                collaborating.
+              </p>
+            )}
           </div>
 
           {isOwner && (invitationsLoading || pendingEmailInvitations.length > 0) && (
-            <div>
-              <p className="mb-1 text-xs font-semibold tracking-wide text-gray-500">
-                PENDING INVITATIONS
-              </p>
+            <div className="border-t border-border pt-6">
+              <h3 className="mb-2 text-sm font-semibold text-gray-900">Pending Invitations</h3>
               {invitationsLoading && (
                 <p className="py-2 text-sm text-muted-foreground">Loading invitations...</p>
               )}
-              <div className="space-y-2">
+              <div className="divide-y divide-border">
                 {pendingEmailInvitations.map((invitation) => (
                   <div
                     key={invitation.id}
                     data-testid="pending-invitation-row"
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-2.5"
+                    className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted"
                   >
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{invitation.email}</p>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-900">
+                        {invitation.email}
+                      </p>
                       <div className="mt-0.5 flex items-center gap-2">
                         <Badge variant="warning">Pending</Badge>
                         <span className="text-xs text-muted-foreground">
@@ -260,45 +255,36 @@ function ShareModal({ open, onClose, project }) {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
+                    <RowMenu label={`Actions for ${invitation.email}`}>
+                      <DropdownMenuItem
+                        icon={RotateCw}
                         onClick={() => resendInvitation.mutate(invitation.id)}
                         disabled={resendInvitation.isPending}
                       >
-                        <RotateCw className="size-3.5" />
-                        Resend
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
+                        Resend Invitation
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        icon={Copy}
                         onClick={() => copyEmailInviteLink(invitation.token)}
                       >
-                        <Copy className="size-3.5" />
-                        Copy Link
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:bg-red-50"
+                        Copy Invite Link
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        icon={X}
+                        destructive
                         onClick={() => setCancellingInvitation(invitation)}
                       >
-                        <X className="size-3.5" />
-                        Cancel
-                      </Button>
-                    </div>
+                        Cancel Invitation
+                      </DropdownMenuItem>
+                    </RowMenu>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="flex justify-end border-t border-border pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+          <div className="flex justify-end border-t border-border pt-5">
+            <Button type="button" variant="ghost" onClick={onClose}>
               Close
             </Button>
           </div>

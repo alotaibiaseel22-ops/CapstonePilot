@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FolderPlus, FileText, Sparkles, CheckCircle2, ArrowRight, Users } from 'lucide-react'
+import { ArrowLeft, FolderPlus, FileText, Sparkles, CheckCircle2, ArrowRight, Users } from 'lucide-react'
 import { Card, CardContent } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
 import { Textarea } from '@/shared/components/ui/textarea'
 import { Button } from '@/shared/components/ui/button'
 import { FileUploadZone } from '../components/FileUploadZone'
+import { ShareModal } from '../components/ShareModal'
 import { useCreateProject } from '../hooks/useProjects'
 import { useAnalyzeProposal } from '../hooks/useAnalyzeProposal'
 
@@ -19,6 +20,7 @@ function CreateProjectPage() {
   const [description, setDescription] = useState('')
   const [file, setFile] = useState(null)
   const [error, setError] = useState(null)
+  const [shareOpen, setShareOpen] = useState(false)
 
   const generating = createProject.isPending || analyzeProposal.isPending
 
@@ -45,6 +47,14 @@ function CreateProjectPage() {
 
   return (
     <div className="space-y-6">
+      <Link
+        to="/projects"
+        className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-gray-700"
+      >
+        <ArrowLeft className="size-4" />
+        Back to Projects
+      </Link>
+
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Create New Project</h1>
         <p className="mt-1 text-muted-foreground">
@@ -136,12 +146,16 @@ function CreateProjectPage() {
           </Card>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Link to={`/projects/${project.id}/settings`}>
-              <Button type="button" variant="outline" size="lg" className="w-full">
-                <Users className="size-5" />
-                Invite Team Members
-              </Button>
-            </Link>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="w-full"
+              onClick={() => setShareOpen(true)}
+            >
+              <Users className="size-5" />
+              Invite Team Members
+            </Button>
             <Link to={`/projects/${project.id}`}>
               <Button type="button" size="lg" className="w-full">
                 Go to Project
@@ -149,6 +163,8 @@ function CreateProjectPage() {
               </Button>
             </Link>
           </div>
+
+          <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} project={project} />
         </div>
       )}
     </div>

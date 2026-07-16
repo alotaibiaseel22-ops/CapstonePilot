@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Link2, Copy, Check, RotateCw, Ban } from 'lucide-react'
+import { Ban, Check, Copy, Link2, MoreVertical, RotateCw } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
+import { DropdownMenu, DropdownMenuItem } from '@/shared/components/ui/dropdown-menu'
 import { getOrCreateLinkInvitation } from '../api/invitations'
 import {
   useLinkInvitation,
@@ -10,7 +11,7 @@ import {
   useDisableLinkInvitation,
 } from '../hooks/useInvitations'
 
-function InviteLinkCard({ projectId, linkInvitation, linkEverExisted, isLoading }) {
+function InviteLinkSection({ projectId, linkInvitation, linkEverExisted, isLoading }) {
   const queryClient = useQueryClient()
   const ensureLink = useLinkInvitation(projectId)
   const regenerateLink = useRegenerateLinkInvitation(projectId)
@@ -60,56 +61,66 @@ function InviteLinkCard({ projectId, linkInvitation, linkEverExisted, isLoading 
   const disabled = !preparing && !linkInvitation
 
   return (
-    <div className="rounded-lg border border-border p-4">
-      <div className="flex items-center gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-          <Link2 className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900">Anyone with this link can join</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {linkInvitation
-              ? `${window.location.origin}/invite/${linkInvitation.token}`
-              : disabled
-                ? 'Link sharing is currently disabled for this project.'
-                : 'Preparing your invite link...'}
-          </p>
-        </div>
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900">Invite Link</h3>
+        <p className="text-sm text-muted-foreground">
+          Anyone with this secure link can join this project.
+        </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="flex items-center gap-2">
+        <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-gray-50 px-3.5">
+          <Link2 className="size-4 shrink-0 text-gray-400" />
+          <span className="truncate text-sm text-gray-500">
+            {linkInvitation ? (
+              <span className="font-mono tracking-widest">••••••••••••••••••</span>
+            ) : disabled ? (
+              'Link sharing is currently disabled for this project.'
+            ) : (
+              'Preparing your invite link...'
+            )}
+          </span>
+        </div>
+
         {linkInvitation ? (
           <>
-            <Button type="button" size="sm" onClick={() => copyLink(linkInvitation.token)}>
+            <Button type="button" onClick={() => copyLink(linkInvitation.token)}>
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-              {copied ? 'Copied' : 'Copy Invite Link'}
+              {copied ? 'Copied' : 'Copy Link'}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => regenerateLink.mutate()}
-              disabled={regenerateLink.isPending}
+            <DropdownMenu
+              trigger={(triggerProps) => (
+                <button
+                  type="button"
+                  aria-label="Invite link options"
+                  className="flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-gray-500 hover:bg-muted hover:text-gray-700"
+                  {...triggerProps}
+                >
+                  <MoreVertical className="size-4" />
+                </button>
+              )}
             >
-              <RotateCw className="size-3.5" />
-              Regenerate Link
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-red-600 hover:bg-red-50"
-              onClick={() => disableLink.mutate(linkInvitation.id)}
-              disabled={disableLink.isPending}
-            >
-              <Ban className="size-3.5" />
-              Disable Link
-            </Button>
+              <DropdownMenuItem
+                icon={RotateCw}
+                onClick={() => regenerateLink.mutate()}
+                disabled={regenerateLink.isPending}
+              >
+                Regenerate Link
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                icon={Ban}
+                destructive
+                onClick={() => disableLink.mutate(linkInvitation.id)}
+                disabled={disableLink.isPending}
+              >
+                Disable Link
+              </DropdownMenuItem>
+            </DropdownMenu>
           </>
         ) : (
           <Button
             type="button"
-            size="sm"
             onClick={() => ensureLink.mutate()}
             disabled={!disabled || ensureLink.isPending}
           >
@@ -122,4 +133,4 @@ function InviteLinkCard({ projectId, linkInvitation, linkEverExisted, isLoading 
   )
 }
 
-export { InviteLinkCard }
+export { InviteLinkSection }

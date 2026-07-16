@@ -54,9 +54,8 @@ test.describe.serial('CapstonePilot end-to-end', () => {
     await page.getByRole('button', { name: 'Share' }).click()
     const modal = page.getByRole('dialog', { name: 'Share Project' })
 
-    await page.getByPlaceholder('Enter an email and press Enter...').fill(collaboratorEmail)
-    await page.getByPlaceholder('Enter an email and press Enter...').press('Enter')
-    await page.getByRole('button', { name: 'Send Invitation' }).click()
+    await page.getByPlaceholder('name@example.com').fill(collaboratorEmail)
+    await page.getByRole('button', { name: 'Invite', exact: true }).click()
 
     await expect(page.getByText(`Invitation sent to ${collaboratorEmail}`)).toBeVisible()
     await expect(modal.getByText(collaboratorEmail).first()).toBeVisible()
@@ -65,7 +64,7 @@ test.describe.serial('CapstonePilot end-to-end', () => {
 
   test('generates and copies the shareable invite link', async () => {
     const modal = page.getByRole('dialog', { name: 'Share Project' })
-    await modal.getByRole('button', { name: /Copy Invite Link/ }).click()
+    await modal.getByRole('button', { name: /Copy Link/ }).click()
     await expect(modal.getByRole('button', { name: 'Copied' })).toBeVisible()
 
     shareableLink = await page.evaluate(() => navigator.clipboard.readText())
@@ -74,10 +73,11 @@ test.describe.serial('CapstonePilot end-to-end', () => {
 
   test('regenerates the invite link and invalidates the old one', async () => {
     const modal = page.getByRole('dialog', { name: 'Share Project' })
-    await modal.getByRole('button', { name: 'Regenerate Link' }).click()
+    await modal.getByLabel('Invite link options').click()
+    await page.getByRole('menuitem', { name: 'Regenerate Link' }).click()
     await expect(page.getByText('Invite link regenerated')).toBeVisible()
 
-    await modal.getByRole('button', { name: /Copy Invite Link/ }).click()
+    await modal.getByRole('button', { name: /Copy Link/ }).click()
     const regeneratedLink = await page.evaluate(() => navigator.clipboard.readText())
     expect(regeneratedLink).toContain('/invite/')
     expect(regeneratedLink).not.toBe(shareableLink)
@@ -86,13 +86,14 @@ test.describe.serial('CapstonePilot end-to-end', () => {
 
   test('disabling the link removes it and a new one can be created', async () => {
     const modal = page.getByRole('dialog', { name: 'Share Project' })
-    await modal.getByRole('button', { name: 'Disable Link' }).click()
+    await modal.getByLabel('Invite link options').click()
+    await page.getByRole('menuitem', { name: 'Disable Link' }).click()
     await expect(page.getByText('Invite link disabled')).toBeVisible()
     await expect(modal.getByText('Link sharing is currently disabled for this project.')).toBeVisible()
 
     await modal.getByRole('button', { name: 'Create New Link' }).click()
-    await expect(modal.getByRole('button', { name: /Copy Invite Link/ })).toBeVisible()
-    await modal.getByRole('button', { name: /Copy Invite Link/ }).click()
+    await expect(modal.getByRole('button', { name: /Copy Link/ })).toBeVisible()
+    await modal.getByRole('button', { name: /Copy Link/ }).click()
 
     const newLink = await page.evaluate(() => navigator.clipboard.readText())
     expect(newLink).toContain('/invite/')
@@ -102,7 +103,8 @@ test.describe.serial('CapstonePilot end-to-end', () => {
 
   test('resends the pending email invitation', async () => {
     const row = page.locator('[data-testid="pending-invitation-row"]').filter({ hasText: collaboratorEmail })
-    await row.getByRole('button', { name: 'Resend' }).click()
+    await row.getByLabel(`Actions for ${collaboratorEmail}`).click()
+    await page.getByRole('menuitem', { name: 'Resend Invitation' }).click()
     await expect(page.getByText(`Invitation resent to ${collaboratorEmail}`)).toBeVisible()
 
     await page.keyboard.press('Escape')
@@ -131,35 +133,35 @@ test.describe.serial('CapstonePilot end-to-end', () => {
     await collabContext.close()
   })
 
-  test('the accepted collaborator shows up as Accepted for the owner', async () => {
+  test('the accepted collaborator shows up as a Member for the owner', async () => {
     await page.reload()
     await page.getByRole('button', { name: 'Share' }).click()
     const modal = page.getByRole('dialog', { name: 'Share Project' })
 
     const collaboratorRow = modal.locator('[data-testid="access-row"]').filter({ hasText: 'E2E Collaborator' })
-    await expect(collaboratorRow.getByText('Accepted')).toBeVisible()
+    await expect(collaboratorRow.getByText('Member')).toBeVisible()
   })
 
-  test('the owner sees a transfer-ownership placeholder instead of removing themselves', async () => {
+  test('the owner row offers profile and email actions instead of removal', async () => {
     const modal = page.getByRole('dialog', { name: 'Share Project' })
     const ownerRow = modal.locator('[data-testid="access-row"]').filter({ hasText: 'Owner' })
     await ownerRow.getByLabel('Owner actions').click()
-    await page.getByRole('menuitem', { name: 'Transfer ownership before leaving' }).click()
+    await page.getByRole('menuitem', { name: 'View Profile' }).click()
 
-    await expect(page.getByText("Transfer ownership before leaving. This isn't available yet.")).toBeVisible()
+    await expect(page.getByText('Profile view is coming soon.')).toBeVisible()
   })
 
   test('re-inviting an existing collaborator shows an error toast', async () => {
-    await page.getByPlaceholder('Enter an email and press Enter...').fill(collaboratorEmail)
-    await page.getByPlaceholder('Enter an email and press Enter...').press('Enter')
-    await page.getByRole('button', { name: 'Send Invitation' }).click()
+    await page.getByPlaceholder('name@example.com').fill(collaboratorEmail)
+    await page.getByRole('button', { name: 'Invite', exact: true }).click()
 
     await expect(page.getByLabel(/Notifications/).getByText(/already a member/i)).toBeVisible()
   })
 
   test('cancels the original pending email invitation', async () => {
     const row = page.locator('[data-testid="pending-invitation-row"]').filter({ hasText: collaboratorEmail })
-    await row.getByRole('button', { name: 'Cancel' }).click()
+    await row.getByLabel(`Actions for ${collaboratorEmail}`).click()
+    await page.getByRole('menuitem', { name: 'Cancel Invitation' }).click()
 
     await page.getByRole('button', { name: 'Cancel invitation' }).click()
     await expect(page.getByText('Invitation cancelled')).toBeVisible()
@@ -169,7 +171,7 @@ test.describe.serial('CapstonePilot end-to-end', () => {
     const modal = page.getByRole('dialog', { name: 'Share Project' })
     const collaboratorRow = modal.locator('[data-testid="access-row"]').filter({ hasText: 'E2E Collaborator' })
     await collaboratorRow.getByLabel(/Actions for E2E Collaborator/).click()
-    await page.getByRole('menuitem', { name: 'Remove from project' }).click()
+    await page.getByRole('menuitem', { name: 'Remove from Project' }).click()
 
     await page.getByRole('dialog', { name: 'Remove collaborator' }).getByRole('button', { name: 'Remove' }).click()
     await expect(page.getByText('Collaborator removed')).toBeVisible()
