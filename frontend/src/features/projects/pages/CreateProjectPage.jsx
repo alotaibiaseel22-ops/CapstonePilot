@@ -5,6 +5,7 @@ import { Input } from '@/shared/components/ui/input'
 import { Textarea } from '@/shared/components/ui/textarea'
 import { Button } from '@/shared/components/ui/button'
 import { TeamMemberChip } from '../components/TeamMemberChip'
+import { ProjectMaterialsSection } from '../components/ProjectMaterialsSection'
 
 const initialTeam = [
   { name: 'Omar Al-Rashidi', color: 'blue' },
@@ -51,6 +52,8 @@ function CreateProjectPage() {
               defaultValue="A machine learning system that analyzes real-time traffic data to optimize signal timing and reduce congestion in urban intersections. The system will use LSTM neural networks for prediction and a React-based dashboard for monitoring."
             />
           </div>
+
+          <ProjectMaterialsSection />
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
