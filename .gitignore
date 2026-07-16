@@ -22,3 +22,7 @@ build/
 
 # Logs
 *.log
+
+# Local dev DB / uploads
+backend/*.db
+backend/uploads/
