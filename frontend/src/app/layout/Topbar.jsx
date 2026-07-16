@@ -27,7 +27,7 @@ function Topbar({ onMenuClick }) {
           <Avatar initials="SA" />
           <span className="hidden text-left sm:block">
             <span className="block text-sm font-semibold leading-tight text-gray-900">Sarah Ahmed</span>
-            <span className="block text-xs leading-tight text-muted-foreground">Supervisor</span>
+            <span className="block text-xs leading-tight text-muted-foreground">Project Lead</span>
           </span>
           <ChevronDown className="size-4 text-gray-400" />
         </button>

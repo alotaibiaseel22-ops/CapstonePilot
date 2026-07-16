@@ -1,7 +1,7 @@
 # CapstonePilot — Iteration 1: System Architecture
 
 **Status:** Approved
-**Decisions locked in:** Monorepo · LLM via OpenRouter · FastAPI BackgroundTasks + DB polling for async jobs · JWT auth with roles (`team_leader`, `member`)
+**Decisions locked in:** Monorepo · LLM via OpenRouter · FastAPI BackgroundTasks + DB polling for async jobs · JWT auth with roles (`project_owner`, `member`)
 
 ---
 
@@ -22,7 +22,7 @@ Everything below exists to serve those three points, kept as simple as it can be
 ```mermaid
 C4Context
 title CapstonePilot — System Context
-Person(leader, "Team Leader", "Creates projects, uploads docs, approves plans/replans")
+Person(leader, "Project Lead", "Creates projects, uploads docs, approves plans/replans")
 Person(member, "Team Member", "Views project, updates own task status")
 System(cp, "CapstonePilot", "AI Project Manager: orchestrates planning, monitoring, risk, replanning")
 System_Ext(llm, "OpenRouter", "LLM gateway — model-agnostic completion API")
@@ -48,7 +48,7 @@ capstonepilot/
 ```mermaid
 C4Container
 title CapstonePilot — Containers
-Person(leader, "Team Leader")
+Person(leader, "Project Lead")
 Person(member, "Team Member")
 
 Container(spa, "Frontend SPA", "React + Vite", "Dashboard, project mgmt, plan review/approval UI, bilingual (AR/EN, RTL/LTR)")
@@ -110,7 +110,7 @@ flowchart TD
     A[Trigger: new project / task update / schedule tick] --> B[Orchestrator Flow starts]
     B --> C[Documentation Analysis Crew\n(only on new/updated docs)]
     C --> D[Planner Crew\ndrafts Plan v_n]
-    D --> E{Team Leader review}
+    D --> E{Project Lead review}
     E -->|Edit/Reject| D
     E -->|Approve| F[Plan v_n: approved\nOrchestrator executes\ntasks/milestones]
     F --> G[Progress Monitoring Crew\n(continuous)]
@@ -119,7 +119,7 @@ flowchart TD
     H -->|Risk threshold breached| I[Risk Analysis Crew]
     I --> J[Recommendation Crew]
     J --> K[Orchestrator assembles\nReplan Proposal = Plan v_n+1 draft]
-    K --> L{Team Leader approves replan?}
+    K --> L{Project Lead approves replan?}
     L -->|No| G
     L -->|Yes| F
 ```
@@ -165,7 +165,7 @@ erDiagram
         uuid id
         string name
         string email
-        string role "team_leader | member"
+        string role "project_owner | member"
         string preferred_language "ar | en"
     }
     PROJECT {
@@ -253,8 +253,8 @@ erDiagram
 
 - FastAPI `OAuth2PasswordBearer` + JWT (access token; refresh token deferred unless requested).
 - Passwords hashed with bcrypt (`passlib`).
-- Two roles: `team_leader`, `member`. Enforced via a `require_role(...)` FastAPI dependency, not scattered `if` checks in handlers.
-- **Team Leader–only:** approve/reject Plan versions and Replan proposals, upload strategic documents, invite members, edit approved plan structure.
+- Two roles: `project_owner`, `member`. Enforced via a `require_role(...)` FastAPI dependency, not scattered `if` checks in handlers. Displayed in the UI as **"Project Lead"** and **"Team Member"** respectively — the role name deliberately does not assume a faculty/academic supervisor exists; `project_owner` is simply the team member who created the project and holds approval authority within it, a peer role rather than an authority figure.
+- **Project Owner–only:** approve/reject Plan versions and Replan proposals, upload strategic documents, invite members, edit approved plan structure.
 - **Member:** view project/plan/tasks, update status of tasks assigned to them.
 - Every approval (`ApprovalDecision`) is stored, not just applied — this is the audit trail the "human in the loop" requirement implies.
 
