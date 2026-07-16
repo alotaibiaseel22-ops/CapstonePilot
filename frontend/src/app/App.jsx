@@ -1,9 +1,8 @@
+import { RouterProvider } from 'react-router-dom'
+import { router } from './router'
+
 function App() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <h1 className="text-2xl font-semibold text-foreground">CapstonePilot</h1>
-    </div>
-  )
+  return <RouterProvider router={router} />
 }
 
 export default App
