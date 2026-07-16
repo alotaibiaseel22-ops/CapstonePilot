@@ -12,5 +12,18 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = ""
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
 
+    # Used to build invitation links in emails, e.g. {FRONTEND_URL}/invite/{token}.
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # SMTP is optional: when SMTP_HOST is unset, EmailService falls back to
+    # logging the email instead of sending it, so invitations keep working
+    # in local dev without real credentials.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "no-reply@capstonepilot.app"
+    SMTP_USE_TLS: bool = True
+
 
 settings = Settings()

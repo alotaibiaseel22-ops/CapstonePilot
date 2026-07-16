@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
 import { Button } from '@/shared/components/ui/button'
 import { useAuth } from '@/app/providers/AuthProvider'
+import { getApiErrorMessage } from '@/shared/lib/apiError'
 
 function LoginPage() {
   const { status, login } = useAuth()
@@ -26,8 +27,13 @@ function LoginPage() {
     try {
       await login(email, password)
       navigate(location.state?.from ?? '/dashboard', { replace: true })
-    } catch {
-      setError('Incorrect email or password.')
+    } catch (err) {
+      if (err.response?.status === 401) {
+        console.error('Login failed: incorrect credentials', err)
+        setError('Incorrect email or password.')
+      } else {
+        setError(getApiErrorMessage(err, 'Could not sign in. Please try again.'))
+      }
     } finally {
       setSubmitting(false)
     }

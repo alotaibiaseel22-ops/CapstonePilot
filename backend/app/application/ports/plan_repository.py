@@ -20,3 +20,9 @@ class PlanRepository(ABC):
 
     @abstractmethod
     def get_current_for_project(self, project_id: UUID) -> Plan | None: ...
+
+    @abstractmethod
+    def list_by_project(self, project_id: UUID) -> list[Plan]: ...
+
+    @abstractmethod
+    def delete(self, plan_id: UUID) -> None: ...

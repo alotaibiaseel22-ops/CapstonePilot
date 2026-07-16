@@ -1,26 +1,46 @@
-import { useParams, Link } from 'react-router-dom'
-import { Users, CalendarClock, Flag, ClipboardList, Settings } from 'lucide-react'
+import { useState } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import {
+  Archive,
+  ArrowLeft,
+  CalendarClock,
+  ClipboardList,
+  Flag,
+  MoreVertical,
+  Pencil,
+  Share2,
+  Trash2,
+  Users,
+} from 'lucide-react'
+import { toast } from 'sonner'
 import { StatCard } from '@/shared/components/common/StatCard'
 import { LoadingState } from '@/shared/components/common/LoadingState'
 import { ErrorState } from '@/shared/components/common/ErrorState'
-import { Card, CardHeader, CardTitle, CardContent } from '@/shared/components/ui/card'
+import { Card } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
+import { DropdownMenu, DropdownMenuItem } from '@/shared/components/ui/dropdown-menu'
+import { ConfirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { useAuth } from '@/app/providers/AuthProvider'
-import { useProject } from '../hooks/useProjects'
+import { useProject, useDeleteProject } from '../hooks/useProjects'
 import { useProjectMembers } from '../hooks/useProjectMembers'
 import { useMilestones } from '@/features/planning/hooks/useMilestones'
-import { TeamMembersSection } from '../components/TeamMembersSection'
+import { ShareModal } from '../components/ShareModal'
 
 const statusTone = { planning: 'default', active: 'info', completed: 'success' }
 const statusLabel = { planning: 'Planning', active: 'Active', completed: 'Completed' }
 
 function ProjectDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { data: project, isLoading, isError } = useProject(id)
   const { data: members } = useProjectMembers(id)
   const { data: milestones } = useMilestones(id)
+  const deleteProject = useDeleteProject()
+
+  const [shareOpen, setShareOpen] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   if (isLoading) return <LoadingState label="Loading project..." />
 
@@ -43,8 +63,31 @@ function ProjectDetailPage() {
     : null
   const isOwner = user?.id === project.owner_id
 
+  async function handleDelete() {
+    await deleteProject.mutateAsync(id)
+    navigate('/projects', { replace: true })
+  }
+
   return (
     <div className="space-y-6">
+      <div className="space-y-3">
+        <Link
+          to="/projects"
+          className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-gray-700"
+        >
+          <ArrowLeft className="size-4" />
+          Back to Projects
+        </Link>
+
+        <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Link to="/projects" className="hover:text-gray-700">
+            Projects
+          </Link>
+          <span>/</span>
+          <span className="font-medium text-gray-700">{project.name}</span>
+        </nav>
+      </div>
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">
@@ -55,14 +98,41 @@ function ProjectDetailPage() {
             {project.description || 'No description provided.'}
           </p>
         </div>
-        {isOwner && (
-          <Link to={`/projects/${id}/settings`}>
-            <Button type="button" variant="outline">
-              <Settings className="size-4" />
-              Settings
-            </Button>
-          </Link>
-        )}
+
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={() => setShareOpen(true)}>
+            <Share2 className="size-4" />
+            Share
+          </Button>
+
+          {isOwner && (
+            <DropdownMenu
+              trigger={(triggerProps) => (
+                <button
+                  type="button"
+                  aria-label="Project actions"
+                  className="flex size-10 items-center justify-center rounded-lg border border-border text-gray-500 hover:bg-muted hover:text-gray-700"
+                  {...triggerProps}
+                >
+                  <MoreVertical className="size-4" />
+                </button>
+              )}
+            >
+              <DropdownMenuItem icon={Pencil} onClick={() => navigate(`/projects/${id}/settings`)}>
+                Edit Project
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                icon={Archive}
+                onClick={() => toast.info('Archiving is coming soon.')}
+              >
+                Archive Project
+              </DropdownMenuItem>
+              <DropdownMenuItem icon={Trash2} destructive onClick={() => setConfirmingDelete(true)}>
+                Delete Project
+              </DropdownMenuItem>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
@@ -82,14 +152,18 @@ function ProjectDetailPage() {
         </Link>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Team</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TeamMembersSection projectId={id} ownerId={project.owner_id} />
-        </CardContent>
-      </Card>
+      <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} project={project} />
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={handleDelete}
+        title="Delete project"
+        description={`This will permanently delete "${project.name}" and everything in it. This can't be undone.`}
+        confirmLabel="Delete project"
+        destructive
+        isConfirming={deleteProject.isPending}
+      />
     </div>
   )
 }

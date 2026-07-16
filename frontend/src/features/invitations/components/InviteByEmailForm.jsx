@@ -37,7 +37,7 @@ function InviteByEmailForm({ projectId }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (emails.length === 0) return
+    if (emails.length === 0 || inviteByEmail.isPending) return
     setError(null)
     setSent(false)
     try {
@@ -79,7 +79,11 @@ function InviteByEmailForm({ projectId }) {
       {sent && <p className="text-sm text-green-600">Invitations sent.</p>}
 
       <Button type="submit" size="sm" disabled={emails.length === 0 || inviteByEmail.isPending}>
-        {inviteByEmail.isPending ? 'Sending...' : 'Send Invitations'}
+        {inviteByEmail.isPending
+          ? 'Sending...'
+          : emails.length === 1
+            ? 'Send Invitation'
+            : 'Send Invitations'}
       </Button>
     </form>
   )

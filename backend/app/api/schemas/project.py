@@ -29,6 +29,8 @@ class ProjectRead(BaseModel):
     description: str
     status: ProjectStatus
     owner_id: UUID
+    owner_name: str | None = None
+    owner_email: str | None = None
     start_date: date | None
     due_date: date | None
     created_at: datetime

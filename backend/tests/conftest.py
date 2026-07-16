@@ -31,6 +31,7 @@ def client():
     app.dependency_overrides[get_db] = override_get_db
 
     with TestClient(app) as test_client:
+        test_client.session_factory = TestingSessionLocal
         yield test_client
 
     app.dependency_overrides.clear()

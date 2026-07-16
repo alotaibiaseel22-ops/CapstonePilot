@@ -17,10 +17,10 @@ import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 const router = createBrowserRouter([
   { path: 'login', element: <LoginPage /> },
   { path: 'register', element: <RegisterPage /> },
+  { path: 'invite/:token', element: <InviteAcceptPage /> },
   {
     element: <ProtectedRoute />,
     children: [
-      { path: 'invite/:token', element: <InviteAcceptPage /> },
       {
         element: <AppShell />,
         children: [

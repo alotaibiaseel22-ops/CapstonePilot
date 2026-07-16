@@ -49,3 +49,13 @@ class SqlAlchemyPlanRepository(PlanRepository):
             .first()
         )
         return _to_entity(model) if model else None
+
+    def list_by_project(self, project_id: UUID) -> list[Plan]:
+        query = self._session.query(PlanModel).filter(PlanModel.project_id == project_id)
+        return [_to_entity(model) for model in query.all()]
+
+    def delete(self, plan_id: UUID) -> None:
+        model = self._session.get(PlanModel, plan_id)
+        if model is not None:
+            self._session.delete(model)
+            self._session.commit()

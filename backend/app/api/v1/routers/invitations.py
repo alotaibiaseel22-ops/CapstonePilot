@@ -2,13 +2,20 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.schemas.invitation import InvitationAcceptResult, InvitationEmailCreate, InvitationRead
+from app.api.schemas.invitation import (
+    InvitationAcceptResult,
+    InvitationEmailCreate,
+    InvitationPreviewRead,
+    InvitationRead,
+)
 from app.api.v1.deps import get_current_user, get_invitation_service, require_role
 from app.application.services.invitation_service import (
     AlreadyAMemberError,
     InvitationAlreadyAcceptedError,
     InvitationEmailMismatchError,
+    InvitationExpiredError,
     InvitationNotFoundError,
+    InvitationNotResendableError,
     InvitationRevokedError,
     InvitationService,
     NotProjectOwnerError,
@@ -57,6 +64,21 @@ def get_or_create_link_invitation(
     return InvitationRead.model_validate(invitation)
 
 
+@router.post("/projects/{project_id}/invitations/link/regenerate", response_model=InvitationRead)
+def regenerate_link_invitation(
+    project_id: UUID,
+    owner: User = Depends(require_role(UserRole.PROJECT_OWNER)),
+    invitation_service: InvitationService = Depends(get_invitation_service),
+):
+    try:
+        invitation = invitation_service.regenerate_link_invitation(project_id, owner.id)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except NotProjectOwnerError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    return InvitationRead.model_validate(invitation)
+
+
 @router.get("/projects/{project_id}/invitations", response_model=list[InvitationRead])
 def list_project_invitations(
     project_id: UUID,
@@ -79,6 +101,38 @@ def list_my_invitations(
 ):
     invitations = invitation_service.list_pending_for_user(current_user.email)
     return [InvitationRead.model_validate(i) for i in invitations]
+
+
+@router.get("/invitations/{token}/preview", response_model=InvitationPreviewRead)
+def preview_invitation(
+    token: str,
+    invitation_service: InvitationService = Depends(get_invitation_service),
+):
+    """Public, unauthenticated: lets the invite-accept page decide whether to
+    send a first-time visitor to Sign Up or Log In before they've proven who
+    they are. Only exposes what someone holding the token already implies."""
+    try:
+        preview = invitation_service.preview(token)
+    except InvitationNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return InvitationPreviewRead.model_validate(preview)
+
+
+@router.post("/invitations/{invitation_id}/resend", response_model=InvitationRead)
+def resend_invitation(
+    invitation_id: UUID,
+    owner: User = Depends(require_role(UserRole.PROJECT_OWNER)),
+    invitation_service: InvitationService = Depends(get_invitation_service),
+):
+    try:
+        invitation = invitation_service.resend_invitation(invitation_id, owner.id)
+    except InvitationNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except NotProjectOwnerError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except InvitationNotResendableError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return InvitationRead.model_validate(invitation)
 
 
 @router.delete("/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -105,7 +159,7 @@ def accept_invitation(
         result = invitation_service.accept_invitation(token, current_user)
     except InvitationNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except InvitationRevokedError as exc:
+    except (InvitationRevokedError, InvitationExpiredError) as exc:
         raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
     except InvitationAlreadyAcceptedError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

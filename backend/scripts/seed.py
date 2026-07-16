@@ -38,6 +38,7 @@ from app.infrastructure.db.repositories.user_repository import (
     SqlAlchemyUserRepository,  # noqa: E402
 )
 from app.infrastructure.db.session import SessionLocal  # noqa: E402
+from app.infrastructure.email.email_service import build_email_service  # noqa: E402
 
 MILESTONES = [
     {
@@ -98,13 +99,19 @@ def main() -> None:
     try:
         auth_service = AuthService(SqlAlchemyUserRepository(db))
         project_service = ProjectService(
-            SqlAlchemyProjectRepository(db), SqlAlchemyPlanRepository(db)
+            SqlAlchemyProjectRepository(db),
+            SqlAlchemyPlanRepository(db),
+            SqlAlchemyProjectMemberRepository(db),
+            SqlAlchemyInvitationRepository(db),
+            SqlAlchemyMilestoneRepository(db),
+            SqlAlchemyTaskRepository(db),
         )
         invitation_service = InvitationService(
             SqlAlchemyInvitationRepository(db),
             SqlAlchemyProjectMemberRepository(db),
             SqlAlchemyUserRepository(db),
             SqlAlchemyProjectRepository(db),
+            build_email_service(),
         )
         milestone_service = MilestoneService(
             SqlAlchemyMilestoneRepository(db), SqlAlchemyPlanRepository(db)

@@ -16,3 +16,6 @@ class Invitation:
     created_at: datetime
     accepted_at: datetime | None
     accepted_by: UUID | None
+    # None for link invitations, which only expire when the owner revokes them.
+    # Set for email invitations, which expire 7 days after being (re)sent.
+    expires_at: datetime | None

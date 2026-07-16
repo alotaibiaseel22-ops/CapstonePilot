@@ -32,8 +32,14 @@ function ProjectListPage() {
       {isError && <ErrorState message="Couldn't load projects. Please try again." />}
 
       {!isLoading && !isError && projects?.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border py-16 text-center text-muted-foreground">
-          No projects yet. Create your first one to get started.
+        <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-border py-16 text-center text-muted-foreground">
+          <p>No projects yet. Create your first one to get started.</p>
+          <Link to="/projects/new">
+            <Button type="button">
+              <Plus className="size-5" />
+              Create Project
+            </Button>
+          </Link>
         </div>
       )}
 

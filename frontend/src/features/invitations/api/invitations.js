@@ -10,13 +10,23 @@ async function getOrCreateLinkInvitation(projectId) {
   return data
 }
 
-async function getProjectInvitations(projectId) {
-  const { data } = await apiClient.get(`/projects/${projectId}/invitations`)
+async function regenerateLinkInvitation(projectId) {
+  const { data } = await apiClient.post(`/projects/${projectId}/invitations/link/regenerate`)
+  return data
+}
+
+async function getProjectInvitations(projectId, signal) {
+  const { data } = await apiClient.get(`/projects/${projectId}/invitations`, { signal })
   return data
 }
 
 async function revokeInvitation(invitationId) {
   await apiClient.delete(`/invitations/${invitationId}`)
+}
+
+async function resendInvitation(invitationId) {
+  const { data } = await apiClient.post(`/invitations/${invitationId}/resend`)
+  return data
 }
 
 async function getMyInvitations() {
@@ -29,11 +39,19 @@ async function acceptInvitation(token) {
   return data
 }
 
+async function getInvitationPreview(token) {
+  const { data } = await apiClient.get(`/invitations/${token}/preview`)
+  return data
+}
+
 export {
   inviteByEmail,
   getOrCreateLinkInvitation,
+  regenerateLinkInvitation,
   getProjectInvitations,
   revokeInvitation,
+  resendInvitation,
   getMyInvitations,
   acceptInvitation,
+  getInvitationPreview,
 }

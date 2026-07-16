@@ -21,3 +21,4 @@ class InvitationModel(Base):
     accepted_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id"), nullable=True
     )
+    expires_at: Mapped[datetime | None] = mapped_column(nullable=True)

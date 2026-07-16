@@ -3,16 +3,31 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
-from app.api.v1.deps import get_current_user, get_project_service, require_role
+from app.api.v1.deps import (
+    get_current_user,
+    get_project_service,
+    get_user_repository,
+    require_role,
+)
+from app.application.ports.user_repository import UserRepository
 from app.application.services.project_service import (
     NotProjectOwnerError,
     ProjectNotFoundError,
     ProjectService,
 )
-from app.domain.entities import User
+from app.domain.entities import Project, User
 from app.domain.enums import UserRole
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def _to_project_read(project: Project, user_repository: UserRepository) -> ProjectRead:
+    owner = user_repository.get_by_id(project.owner_id)
+    read = ProjectRead.model_validate(project)
+    if owner is not None:
+        read.owner_name = owner.name
+        read.owner_email = owner.email
+    return read
 
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -20,6 +35,7 @@ def create_project(
     payload: ProjectCreate,
     owner: User = Depends(require_role(UserRole.PROJECT_OWNER)),
     project_service: ProjectService = Depends(get_project_service),
+    user_repository: UserRepository = Depends(get_user_repository),
 ):
     project = project_service.create_project(
         name=payload.name,
@@ -28,15 +44,16 @@ def create_project(
         start_date=payload.start_date,
         due_date=payload.due_date,
     )
-    return ProjectRead.model_validate(project)
+    return _to_project_read(project, user_repository)
 
 
 @router.get("", response_model=list[ProjectRead])
 def list_projects(
     _current_user: User = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    user_repository: UserRepository = Depends(get_user_repository),
 ):
-    return [ProjectRead.model_validate(p) for p in project_service.list_projects()]
+    return [_to_project_read(p, user_repository) for p in project_service.list_projects()]
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
@@ -44,9 +61,10 @@ def get_project(
     project_id: UUID,
     _current_user: User = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    user_repository: UserRepository = Depends(get_user_repository),
 ):
     try:
-        return ProjectRead.model_validate(project_service.get_project(project_id))
+        return _to_project_read(project_service.get_project(project_id), user_repository)
     except ProjectNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -57,6 +75,7 @@ def update_project(
     payload: ProjectUpdate,
     owner: User = Depends(require_role(UserRole.PROJECT_OWNER)),
     project_service: ProjectService = Depends(get_project_service),
+    user_repository: UserRepository = Depends(get_user_repository),
 ):
     try:
         updates = payload.model_dump(exclude_unset=True)
@@ -65,7 +84,7 @@ def update_project(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except NotProjectOwnerError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    return ProjectRead.model_validate(project)
+    return _to_project_read(project, user_repository)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

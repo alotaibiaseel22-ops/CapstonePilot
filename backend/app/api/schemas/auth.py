@@ -1,15 +1,15 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.domain.enums import Language, UserRole
 
 
 class UserCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1)
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8, max_length=72)
     role: UserRole = UserRole.COLLABORATOR
     preferred_language: Language = Language.EN
 

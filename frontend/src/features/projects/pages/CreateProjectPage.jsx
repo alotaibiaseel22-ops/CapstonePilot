@@ -28,6 +28,7 @@ function CreateProjectPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (generating) return
     setError(null)
     try {
       const created = await createProject.mutateAsync({ name, description })

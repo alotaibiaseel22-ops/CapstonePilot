@@ -20,7 +20,17 @@ class InvitationRead(BaseModel):
     status: InvitationStatus
     created_at: datetime
     accepted_at: datetime | None
+    expires_at: datetime | None
 
 
 class InvitationAcceptResult(BaseModel):
     project_id: UUID
+
+
+class InvitationPreviewRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    project_name: str
+    email: str | None
+    user_exists: bool
+    is_valid: bool

@@ -1,12 +1,12 @@
 import { apiClient } from '@/shared/lib/apiClient'
 
-async function getProjects() {
-  const { data } = await apiClient.get('/projects')
+async function getProjects(signal) {
+  const { data } = await apiClient.get('/projects', { signal })
   return data
 }
 
-async function getProjectById(id) {
-  const { data } = await apiClient.get(`/projects/${id}`)
+async function getProjectById(id, signal) {
+  const { data } = await apiClient.get(`/projects/${id}`, { signal })
   return data
 }
 
@@ -24,8 +24,8 @@ async function deleteProject(id) {
   await apiClient.delete(`/projects/${id}`)
 }
 
-async function getProjectMembers(projectId) {
-  const { data } = await apiClient.get(`/projects/${projectId}/members`)
+async function getProjectMembers(projectId, signal) {
+  const { data } = await apiClient.get(`/projects/${projectId}/members`, { signal })
   return data
 }
 

@@ -3,11 +3,24 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from app.application.ports.project_member_repository import ProjectMemberRepository
+from app.application.ports.project_repository import ProjectRepository
 from app.application.ports.user_repository import UserRepository
 from app.domain.entities import ProjectMember, User
 
 
 class AlreadyAMemberError(Exception):
+    pass
+
+
+class ProjectNotFoundError(Exception):
+    pass
+
+
+class NotProjectOwnerError(Exception):
+    pass
+
+
+class CannotRemoveOwnerError(Exception):
     pass
 
 
@@ -27,10 +40,14 @@ class ProjectMemberService:
     invitation rather than being added unilaterally."""
 
     def __init__(
-        self, project_member_repository: ProjectMemberRepository, user_repository: UserRepository
+        self,
+        project_member_repository: ProjectMemberRepository,
+        user_repository: UserRepository,
+        project_repository: ProjectRepository,
     ):
         self._members = project_member_repository
         self._users = user_repository
+        self._projects = project_repository
 
     def add_member(self, project_id: uuid.UUID, user_id: uuid.UUID) -> ProjectMemberInfo:
         if self._members.exists(project_id, user_id):
@@ -55,7 +72,22 @@ class ProjectMemberService:
                 infos.append(self._to_info(member, user))
         return infos
 
-    def remove_member(self, project_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    def remove_member(
+        self, project_id: uuid.UUID, user_id: uuid.UUID, requesting_user_id: uuid.UUID
+    ) -> None:
+        """Only this specific project's owner can remove a collaborator - a
+        global 'project_owner' role alone does not grant that right over
+        every project. The owner can't remove themselves this way; that
+        requires transferring ownership first, which isn't built yet."""
+        project = self._projects.get_by_id(project_id)
+        if project is None:
+            raise ProjectNotFoundError(f"Project {project_id} not found")
+        if project.owner_id != requesting_user_id:
+            raise NotProjectOwnerError("Only this project's owner can remove collaborators")
+        if user_id == project.owner_id:
+            raise CannotRemoveOwnerError(
+                "The project owner can't be removed from their own project"
+            )
         self._members.remove(project_id, user_id)
 
     @staticmethod

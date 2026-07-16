@@ -4,6 +4,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
+from app.application.ports.email_service import EmailService
+from app.application.ports.user_repository import UserRepository
 from app.application.services.auth_service import AuthService
 from app.application.services.invitation_service import InvitationService
 from app.application.services.milestone_service import MilestoneService
@@ -23,6 +25,7 @@ from app.infrastructure.db.repositories.project_repository import SqlAlchemyProj
 from app.infrastructure.db.repositories.task_repository import SqlAlchemyTaskRepository
 from app.infrastructure.db.repositories.user_repository import SqlAlchemyUserRepository
 from app.infrastructure.db.session import SessionLocal
+from app.infrastructure.email.email_service import build_email_service
 from app.infrastructure.security.jwt import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
@@ -40,20 +43,42 @@ def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
     return AuthService(SqlAlchemyUserRepository(db))
 
 
+def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
+    return SqlAlchemyUserRepository(db)
+
+
+def get_email_service() -> EmailService:
+    return build_email_service()
+
+
 def get_project_service(db: Session = Depends(get_db)) -> ProjectService:
-    return ProjectService(SqlAlchemyProjectRepository(db), SqlAlchemyPlanRepository(db))
+    return ProjectService(
+        SqlAlchemyProjectRepository(db),
+        SqlAlchemyPlanRepository(db),
+        SqlAlchemyProjectMemberRepository(db),
+        SqlAlchemyInvitationRepository(db),
+        SqlAlchemyMilestoneRepository(db),
+        SqlAlchemyTaskRepository(db),
+    )
 
 
 def get_project_member_service(db: Session = Depends(get_db)) -> ProjectMemberService:
-    return ProjectMemberService(SqlAlchemyProjectMemberRepository(db), SqlAlchemyUserRepository(db))
+    return ProjectMemberService(
+        SqlAlchemyProjectMemberRepository(db),
+        SqlAlchemyUserRepository(db),
+        SqlAlchemyProjectRepository(db),
+    )
 
 
-def get_invitation_service(db: Session = Depends(get_db)) -> InvitationService:
+def get_invitation_service(
+    db: Session = Depends(get_db), email_service: EmailService = Depends(get_email_service)
+) -> InvitationService:
     return InvitationService(
         SqlAlchemyInvitationRepository(db),
         SqlAlchemyProjectMemberRepository(db),
         SqlAlchemyUserRepository(db),
         SqlAlchemyProjectRepository(db),
+        email_service,
     )
 
 

@@ -16,3 +16,6 @@ class ProjectMemberRepository(ABC):
 
     @abstractmethod
     def remove(self, project_id: UUID, user_id: UUID) -> None: ...
+
+    @abstractmethod
+    def delete_by_project(self, project_id: UUID) -> None: ...

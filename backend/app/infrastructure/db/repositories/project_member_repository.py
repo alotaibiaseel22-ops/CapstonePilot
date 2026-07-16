@@ -57,3 +57,9 @@ class SqlAlchemyProjectMemberRepository(ProjectMemberRepository):
         if model is not None:
             self._session.delete(model)
             self._session.commit()
+
+    def delete_by_project(self, project_id: UUID) -> None:
+        self._session.query(ProjectMemberModel).filter(
+            ProjectMemberModel.project_id == project_id
+        ).delete()
+        self._session.commit()

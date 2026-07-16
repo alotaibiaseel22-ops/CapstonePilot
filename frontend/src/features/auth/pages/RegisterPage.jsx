@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
 import { Button } from '@/shared/components/ui/button'
 import { useAuth } from '@/app/providers/AuthProvider'
+import { getApiErrorMessage } from '@/shared/lib/apiError'
 
 function RegisterPage() {
   const { status, register } = useAuth()
@@ -18,7 +19,7 @@ function RegisterPage() {
   const role = cameFromInvite ? 'collaborator' : 'project_owner'
 
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(location.state?.inviteEmail ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -35,7 +36,7 @@ function RegisterPage() {
       await register({ name, email, password, role })
       navigate(location.state?.from ?? '/dashboard', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.detail ?? 'Could not create your account. Please try again.')
+      setError(getApiErrorMessage(err, 'Could not create your account. Please try again.'))
     } finally {
       setSubmitting(false)
     }
@@ -66,7 +67,13 @@ function RegisterPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="mb-2 block text-xs font-semibold tracking-wide text-gray-500">NAME</label>
-                <Input icon={User} required value={name} onChange={(e) => setName(e.target.value)} />
+                <Input
+                  icon={User}
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Jane Doe"
+                />
               </div>
               <div>
                 <label className="mb-2 block text-xs font-semibold tracking-wide text-gray-500">EMAIL</label>
@@ -76,7 +83,14 @@ function RegisterPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  readOnly={Boolean(location.state?.inviteEmail)}
+                  className={location.state?.inviteEmail ? 'bg-muted' : undefined}
                 />
+                {location.state?.inviteEmail && (
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    This invitation was sent to this address.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="mb-2 block text-xs font-semibold tracking-wide text-gray-500">PASSWORD</label>
@@ -84,9 +98,11 @@ function RegisterPage() {
                   icon={Lock}
                   type="password"
                   required
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                <p className="mt-1.5 text-xs text-muted-foreground">At least 8 characters.</p>
               </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}

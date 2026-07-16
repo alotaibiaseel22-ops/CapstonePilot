@@ -27,3 +27,6 @@ class InvitationRepository(ABC):
 
     @abstractmethod
     def update(self, invitation: Invitation) -> Invitation: ...
+
+    @abstractmethod
+    def delete_by_project(self, project_id: UUID) -> None: ...

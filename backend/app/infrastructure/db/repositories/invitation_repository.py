@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -6,6 +7,14 @@ from app.application.ports.invitation_repository import InvitationRepository
 from app.domain.entities import Invitation
 from app.domain.enums import InvitationStatus
 from app.infrastructure.db.models import InvitationModel
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    """SQLite drops tzinfo on round-trip, so timestamps written as UTC come
+    back naive. Everything this app writes is UTC, so naive == UTC here."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
 
 
 def _to_entity(model: InvitationModel) -> Invitation:
@@ -19,6 +28,7 @@ def _to_entity(model: InvitationModel) -> Invitation:
         created_at=model.created_at,
         accepted_at=model.accepted_at,
         accepted_by=model.accepted_by,
+        expires_at=_as_utc(model.expires_at),
     )
 
 
@@ -37,6 +47,7 @@ class SqlAlchemyInvitationRepository(InvitationRepository):
             created_at=invitation.created_at,
             accepted_at=invitation.accepted_at,
             accepted_by=invitation.accepted_by,
+            expires_at=invitation.expires_at,
         )
         self._session.add(model)
         self._session.commit()
@@ -84,6 +95,13 @@ class SqlAlchemyInvitationRepository(InvitationRepository):
         model.status = invitation.status.value
         model.accepted_at = invitation.accepted_at
         model.accepted_by = invitation.accepted_by
+        model.expires_at = invitation.expires_at
         self._session.commit()
         self._session.refresh(model)
         return _to_entity(model)
+
+    def delete_by_project(self, project_id: UUID) -> None:
+        self._session.query(InvitationModel).filter(
+            InvitationModel.project_id == project_id
+        ).delete()
+        self._session.commit()

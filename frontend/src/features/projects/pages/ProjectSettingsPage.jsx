@@ -5,13 +5,11 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/shared/components/ui
 import { Input } from '@/shared/components/ui/input'
 import { Textarea } from '@/shared/components/ui/textarea'
 import { Button } from '@/shared/components/ui/button'
+import { ConfirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { LoadingState } from '@/shared/components/common/LoadingState'
 import { ErrorState } from '@/shared/components/common/ErrorState'
 import { useAuth } from '@/app/providers/AuthProvider'
 import { useProject, useUpdateProject, useDeleteProject } from '../hooks/useProjects'
-import { InviteByEmailForm } from '@/features/invitations/components/InviteByEmailForm'
-import { InviteLinkCard } from '@/features/invitations/components/InviteLinkCard'
-import { PendingInvitationsList } from '@/features/invitations/components/PendingInvitationsList'
 
 function ProjectSettingsPage() {
   const { id } = useParams()
@@ -23,7 +21,6 @@ function ProjectSettingsPage() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [savedMessage, setSavedMessage] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   if (isLoading) return <LoadingState label="Loading project settings..." />
@@ -43,9 +40,7 @@ function ProjectSettingsPage() {
 
   async function handleSave(e) {
     e.preventDefault()
-    setSavedMessage(false)
     await updateProject.mutateAsync({ name: nameValue, description: descriptionValue })
-    setSavedMessage(true)
   }
 
   async function handleDelete() {
@@ -86,25 +81,10 @@ function ProjectSettingsPage() {
               </label>
               <Textarea value={descriptionValue} onChange={(e) => setDescription(e.target.value)} />
             </div>
-            {savedMessage && <p className="text-sm text-green-600">Saved.</p>}
             <Button type="submit" size="sm" disabled={updateProject.isPending}>
               {updateProject.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Invite Collaborators</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <InviteByEmailForm projectId={id} />
-          <InviteLinkCard projectId={id} />
-          <div>
-            <p className="mb-2 text-xs font-semibold tracking-wide text-gray-500">SENT INVITATIONS</p>
-            <PendingInvitationsList projectId={id} />
-          </div>
         </CardContent>
       </Card>
 
@@ -113,34 +93,23 @@ function ProjectSettingsPage() {
           <CardTitle className="text-red-700">Danger Zone</CardTitle>
         </CardHeader>
         <CardContent>
-          {!confirmingDelete ? (
-            <Button type="button" variant="destructive" onClick={() => setConfirmingDelete(true)}>
-              <Trash2 className="size-4" />
-              Delete Project
-            </Button>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-red-700">
-                This will permanently delete "{project.name}" and cannot be undone. Are you sure?
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="destructive"
-                  className="border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
-                  onClick={handleDelete}
-                  disabled={deleteProject.isPending}
-                >
-                  {deleteProject.isPending ? 'Deleting...' : 'Yes, delete this project'}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setConfirmingDelete(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
+          <Button type="button" variant="destructive" onClick={() => setConfirmingDelete(true)}>
+            <Trash2 className="size-4" />
+            Delete Project
+          </Button>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={handleDelete}
+        title="Delete project"
+        description={`This will permanently delete "${project.name}" and everything in it. This can't be undone.`}
+        confirmLabel="Delete project"
+        destructive
+        isConfirming={deleteProject.isPending}
+      />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   getProjects,
   getProjectById,
@@ -8,13 +9,16 @@ import {
 } from '../api/projects'
 
 function useProjects() {
-  return useQuery({ queryKey: ['projects'], queryFn: getProjects })
+  return useQuery({
+    queryKey: ['projects'],
+    queryFn: ({ signal }) => getProjects(signal),
+  })
 }
 
 function useProject(id) {
   return useQuery({
     queryKey: ['projects', id],
-    queryFn: () => getProjectById(id),
+    queryFn: ({ signal }) => getProjectById(id, signal),
     enabled: Boolean(id),
   })
 }
@@ -25,6 +29,10 @@ function useCreateProject() {
     mutationFn: createProject,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      toast.success('Project created')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail ?? 'Could not create the project.')
     },
   })
 }
@@ -36,6 +44,10 @@ function useUpdateProject(id) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
       queryClient.invalidateQueries({ queryKey: ['projects', id] })
+      toast.success('Project updated')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail ?? 'Could not update the project.')
     },
   })
 }
@@ -46,6 +58,10 @@ function useDeleteProject() {
     mutationFn: deleteProject,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      toast.success('Project deleted')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail ?? 'Could not delete the project.')
     },
   })
 }

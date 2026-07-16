@@ -1,10 +1,15 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.schemas.project_member import ProjectMemberRead
 from app.api.v1.deps import get_current_user, get_project_member_service, require_role
-from app.application.services.project_member_service import ProjectMemberService
+from app.application.services.project_member_service import (
+    CannotRemoveOwnerError,
+    NotProjectOwnerError,
+    ProjectMemberService,
+    ProjectNotFoundError,
+)
 from app.domain.entities import User
 from app.domain.enums import UserRole
 
@@ -24,7 +29,14 @@ def list_members(
 def remove_member(
     project_id: UUID,
     user_id: UUID,
-    _owner: User = Depends(require_role(UserRole.PROJECT_OWNER)),
+    owner: User = Depends(require_role(UserRole.PROJECT_OWNER)),
     member_service: ProjectMemberService = Depends(get_project_member_service),
 ):
-    member_service.remove_member(project_id, user_id)
+    try:
+        member_service.remove_member(project_id, user_id, owner.id)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except NotProjectOwnerError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except CannotRemoveOwnerError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

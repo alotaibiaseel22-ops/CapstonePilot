@@ -1,3 +1,9 @@
+from datetime import UTC, datetime, timedelta
+from uuid import UUID
+
+from app.infrastructure.db.models import InvitationModel
+
+
 def register(client, email, role="collaborator"):
     response = client.post(
         "/api/v1/auth/register",
@@ -15,6 +21,31 @@ def test_health_check(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_cors_allows_any_localhost_dev_port_but_not_other_origins(client):
+    # Vite auto-bumps to another port (5174, 5175, ...) the moment 5173 is
+    # already taken by a leftover process - without allow_origin_regex in
+    # development, that silent port change makes the frontend's API calls
+    # fail as an opaque network error indistinguishable from the backend
+    # being down, since a CORS rejection never reaches application code.
+    configured_origin = client.options(
+        "/api/v1/auth/register",
+        headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "POST"},
+    )
+    assert configured_origin.status_code == 200
+
+    other_dev_port = client.options(
+        "/api/v1/auth/register",
+        headers={"Origin": "http://localhost:5174", "Access-Control-Request-Method": "POST"},
+    )
+    assert other_dev_port.status_code == 200
+
+    untrusted_origin = client.options(
+        "/api/v1/auth/register",
+        headers={"Origin": "http://evil.example.com", "Access-Control-Request-Method": "POST"},
+    )
+    assert untrusted_origin.status_code == 400
 
 
 def test_register_and_login(client):
@@ -36,6 +67,44 @@ def test_duplicate_email_registration_fails(client):
         json={"name": "Test User", "email": "dup@example.com", "password": "secret123"},
     )
     assert response.status_code == 409
+
+
+def test_registration_rejects_short_password(client):
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"name": "Short Pw", "email": "shortpw@example.com", "password": "abc"},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert any(item["loc"] == ["body", "password"] for item in detail)
+
+
+def test_registration_rejects_invalid_email(client):
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"name": "Bad Email", "email": "not-an-email", "password": "secret123"},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert any(item["loc"] == ["body", "email"] for item in detail)
+
+
+def test_successful_registration_persists_a_real_user_row(client):
+    from uuid import UUID
+
+    from app.infrastructure.db.models import UserModel
+
+    registered = register(client, "persisted@example.com", role="project_owner")
+    user_id = UUID(registered["user"]["id"])
+
+    db = client.session_factory()
+    try:
+        model = db.get(UserModel, user_id)
+        assert model is not None
+        assert model.email == "persisted@example.com"
+        assert model.password_hash != "secret123"
+    finally:
+        db.close()
 
 
 def test_wrong_password_login_fails(client):
@@ -376,3 +445,235 @@ def test_get_nonexistent_project_returns_404(client):
         "/api/v1/projects/00000000-0000-0000-0000-000000000000", headers=headers
     )
     assert response.status_code == 404
+
+
+def test_project_read_includes_owner_name_and_email(client):
+    owner = register(client, "ownerF@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+    assert project["owner_name"] == "Test User"
+    assert project["owner_email"] == "ownerF@example.com"
+
+
+def test_resend_invitation_refreshes_expiry_and_requires_owner(client):
+    owner = register(client, "owner12@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    outsider = register(client, "outsider12@example.com", role="project_owner")
+    outsider_headers = auth_headers(outsider["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+
+    invite = client.post(
+        f"/api/v1/projects/{project['id']}/invitations",
+        json={"emails": ["teammate12@example.com"]},
+        headers=headers,
+    ).json()[0]
+
+    forbidden = client.post(
+        f"/api/v1/invitations/{invite['id']}/resend", headers=outsider_headers
+    )
+    assert forbidden.status_code == 403
+
+    resent = client.post(f"/api/v1/invitations/{invite['id']}/resend", headers=headers)
+    assert resent.status_code == 200
+    assert resent.json()["token"] == invite["token"]
+    assert resent.json()["expires_at"] > invite["expires_at"]
+
+
+def test_resend_link_invitation_is_rejected(client):
+    owner = register(client, "owner13@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+
+    link = client.post(f"/api/v1/projects/{project['id']}/invitations/link", headers=headers).json()
+
+    response = client.post(f"/api/v1/invitations/{link['id']}/resend", headers=headers)
+    assert response.status_code == 400
+
+
+def test_preview_invitation_reports_project_and_account_status(client):
+    owner = register(client, "owner14@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    register(client, "known14@example.com", role="collaborator")
+    project = client.post(
+        "/api/v1/projects", json={"name": "Preview Project", "description": ""}, headers=headers
+    ).json()
+
+    known_invite = client.post(
+        f"/api/v1/projects/{project['id']}/invitations",
+        json={"emails": ["known14@example.com"]},
+        headers=headers,
+    ).json()[0]
+    unknown_invite = client.post(
+        f"/api/v1/projects/{project['id']}/invitations",
+        json={"emails": ["unknown14@example.com"]},
+        headers=headers,
+    ).json()[0]
+
+    known_preview = client.get(f"/api/v1/invitations/{known_invite['token']}/preview")
+    assert known_preview.status_code == 200
+    assert known_preview.json() == {
+        "project_name": "Preview Project",
+        "email": "known14@example.com",
+        "user_exists": True,
+        "is_valid": True,
+    }
+
+    unknown_preview = client.get(f"/api/v1/invitations/{unknown_invite['token']}/preview")
+    assert unknown_preview.json()["user_exists"] is False
+
+    missing = client.get("/api/v1/invitations/not-a-real-token/preview")
+    assert missing.status_code == 404
+
+
+def test_expired_email_invitation_cannot_be_accepted(client):
+    owner = register(client, "owner15@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    collaborator = register(client, "teammate15@example.com", role="collaborator")
+    collaborator_headers = auth_headers(collaborator["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+
+    invite = client.post(
+        f"/api/v1/projects/{project['id']}/invitations",
+        json={"emails": ["teammate15@example.com"]},
+        headers=headers,
+    ).json()[0]
+
+    db = client.session_factory()
+    try:
+        model = (
+            db.query(InvitationModel).filter(InvitationModel.id == UUID(invite["id"])).first()
+        )
+        model.expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        f"/api/v1/invitations/{invite['token']}/accept", headers=collaborator_headers
+    )
+    assert response.status_code == 410
+
+
+def test_owner_cannot_be_removed_and_removal_requires_ownership(client):
+    owner = register(client, "owner16@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    outsider = register(client, "outsider16@example.com", role="project_owner")
+    outsider_headers = auth_headers(outsider["access_token"])
+    collaborator = register(client, "teammate16@example.com", role="collaborator")
+    collaborator_headers = auth_headers(collaborator["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+
+    invite = client.post(
+        f"/api/v1/projects/{project['id']}/invitations",
+        json={"emails": ["teammate16@example.com"]},
+        headers=headers,
+    ).json()[0]
+    client.post(f"/api/v1/invitations/{invite['token']}/accept", headers=collaborator_headers)
+
+    owner_id = owner["user"]["id"]
+    collaborator_id = collaborator["user"]["id"]
+
+    cannot_remove_owner = client.delete(
+        f"/api/v1/projects/{project['id']}/members/{owner_id}", headers=headers
+    )
+    assert cannot_remove_owner.status_code == 400
+
+    forbidden = client.delete(
+        f"/api/v1/projects/{project['id']}/members/{collaborator_id}", headers=outsider_headers
+    )
+    assert forbidden.status_code == 403
+
+    allowed = client.delete(
+        f"/api/v1/projects/{project['id']}/members/{collaborator_id}", headers=headers
+    )
+    assert allowed.status_code == 204
+
+
+def test_delete_project_cascades_members_and_invitations(client):
+    owner = register(client, "owner17@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    collaborator = register(client, "teammate17@example.com", role="collaborator")
+    collaborator_headers = auth_headers(collaborator["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+
+    invite = client.post(
+        f"/api/v1/projects/{project['id']}/invitations",
+        json={"emails": ["teammate17@example.com"]},
+        headers=headers,
+    ).json()[0]
+    client.post(f"/api/v1/invitations/{invite['token']}/accept", headers=collaborator_headers)
+    client.post(
+        f"/api/v1/projects/{project['id']}/milestones",
+        json={"title": "Kickoff", "order": 0},
+        headers=headers,
+    )
+
+    delete_resp = client.delete(f"/api/v1/projects/{project['id']}", headers=headers)
+    assert delete_resp.status_code == 204
+
+    db = client.session_factory()
+    try:
+        from app.infrastructure.db.models import MilestoneModel, PlanModel, ProjectMemberModel
+
+        project_id = UUID(project["id"])
+        assert db.query(ProjectMemberModel).filter_by(project_id=project_id).count() == 0
+        assert db.query(InvitationModel).filter_by(project_id=project_id).count() == 0
+        assert db.query(PlanModel).filter_by(project_id=project_id).count() == 0
+        assert db.query(MilestoneModel).count() == 0
+    finally:
+        db.close()
+
+
+def test_regenerate_link_invitation_revokes_old_token_and_requires_ownership(client):
+    owner = register(client, "owner18@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    outsider = register(client, "outsider18@example.com", role="project_owner")
+    outsider_headers = auth_headers(outsider["access_token"])
+    person = register(client, "person18@example.com", role="collaborator")
+    person_headers = auth_headers(person["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+
+    first_link = client.post(
+        f"/api/v1/projects/{project['id']}/invitations/link", headers=headers
+    ).json()
+
+    forbidden = client.post(
+        f"/api/v1/projects/{project['id']}/invitations/link/regenerate", headers=outsider_headers
+    )
+    assert forbidden.status_code == 403
+
+    second_link = client.post(
+        f"/api/v1/projects/{project['id']}/invitations/link/regenerate", headers=headers
+    ).json()
+    assert second_link["token"] != first_link["token"]
+
+    old_token_accept = client.post(
+        f"/api/v1/invitations/{first_link['token']}/accept", headers=person_headers
+    )
+    assert old_token_accept.status_code == 410
+
+    new_token_accept = client.post(
+        f"/api/v1/invitations/{second_link['token']}/accept", headers=person_headers
+    )
+    assert new_token_accept.status_code == 200
+
+    # Regenerating again after the old link was already revoked shouldn't error
+    third_link = client.post(
+        f"/api/v1/projects/{project['id']}/invitations/link/regenerate", headers=headers
+    ).json()
+    assert third_link["token"] != second_link["token"]
