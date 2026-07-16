@@ -8,7 +8,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.v1.deps import get_db
-from app.core.config import settings
 from app.infrastructure.db import models  # noqa: F401  (registers all models on Base.metadata)
 from app.infrastructure.db.session import Base
 from app.main import app
@@ -17,7 +16,6 @@ from app.main import app
 @pytest.fixture()
 def client():
     db_fd, db_path = tempfile.mkstemp(suffix=".db")
-    upload_dir = tempfile.mkdtemp()
 
     engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -31,14 +29,11 @@ def client():
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
-    original_upload_dir = settings.UPLOAD_DIR
-    settings.UPLOAD_DIR = upload_dir
 
     with TestClient(app) as test_client:
         yield test_client
 
     app.dependency_overrides.clear()
-    settings.UPLOAD_DIR = original_upload_dir
     engine.dispose()
     os.close(db_fd)
     Path(db_path).unlink(missing_ok=True)

@@ -1,3 +1,4 @@
+import { PreviewDataBanner } from '@/shared/components/common/PreviewDataBanner'
 import { AnalysisBanner } from '../components/AnalysisBanner'
 import { RecommendationCard } from '../components/RecommendationCard'
 
@@ -41,6 +42,10 @@ function RecommendationsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Recommendations</h1>
         <p className="mt-1 text-muted-foreground">AI-generated suggestions to improve project outcomes</p>
       </div>
+
+      <PreviewDataBanner>
+        Preview data — connects when Recommendation generation ships in Iteration 13.
+      </PreviewDataBanner>
 
       <AnalysisBanner />
 

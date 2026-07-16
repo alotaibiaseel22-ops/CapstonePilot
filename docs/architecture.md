@@ -55,8 +55,7 @@ Container(spa, "Frontend SPA", "React + Vite", "Dashboard, project mgmt, plan re
 Container(api, "Backend API", "FastAPI", "REST API, auth, orchestration trigger, job status")
 Container(orch, "Orchestrator + Agents", "CrewAI Flow", "Planner, Progress Monitor, Risk, Recommendation, Doc Analysis, Reporting agents")
 Container(rules, "Decision Engine", "Python module", "Deterministic rules: deadlines, workload, risk thresholds")
-ContainerDb(pg, "PostgreSQL", "Database", "Projects, Plans (versioned), Tasks, Documents, AgentRuns, Approvals")
-Container(files, "File Storage", "Local disk / object storage adapter", "Uploaded project documents")
+ContainerDb(pg, "PostgreSQL", "Database", "Projects, ProjectMembers, Plans (versioned), Tasks, AgentRuns, Approvals")
 System_Ext(openrouter, "OpenRouter", "LLM Gateway")
 
 Rel(leader, spa, "Uses")
@@ -67,8 +66,10 @@ Rel(orch, rules, "Calls for objective signals")
 Rel(orch, openrouter, "LLM completions (LiteLLM model string)")
 Rel(api, pg, "SQLAlchemy repositories")
 Rel(orch, pg, "Reads context, writes AgentRun/Plan/Risk state")
-Rel(api, files, "Store/retrieve uploads")
+Rel(api, orch, "Streams uploaded proposal bytes in-memory for analysis (never persisted)")
 ```
+
+**No persistent file storage.** An earlier revision of this architecture included a `Document` entity and a local-disk/object-storage adapter for uploaded project files. That was replaced during frontend-backend wiring: uploaded proposals are analyzed **in memory only** (`ProposalAnalysisService`, text-extracted via PyMuPDF/python-docx) and the file is discarded once the request completes. Only the *results* of analysis — Plans, Milestones, Tasks, RiskReports, Recommendations — are persisted, never the original document. This is deliberate: the system treats an uploaded proposal as a one-time analysis input, not a project asset to archive.
 
 ---
 
@@ -151,7 +152,8 @@ The Flow always computes rule-based facts first and injects them as structured c
 erDiagram
     USER ||--o{ PROJECT : owns
     USER ||--o{ TASK : "assigned to"
-    PROJECT ||--o{ DOCUMENT : has
+    PROJECT ||--o{ PROJECT_MEMBER : has
+    USER ||--o{ PROJECT_MEMBER : "belongs to"
     PROJECT ||--o{ PLAN : "has versions of"
     PLAN ||--o{ MILESTONE : contains
     MILESTONE ||--o{ TASK : contains
@@ -175,13 +177,11 @@ erDiagram
         string status
         uuid owner_id
     }
-    DOCUMENT {
+    PROJECT_MEMBER {
         uuid id
         uuid project_id
-        string filename
-        string storage_path
-        string detected_language
-        text extracted_text
+        uuid user_id
+        timestamp added_at
     }
     PLAN {
         uuid id
@@ -283,7 +283,7 @@ frontend/src/
 
 - **Server state:** React Query (cache, polling for job status, invalidation on mutations) — not hand-rolled `useEffect` fetching.
 - **i18n:** `react-i18next` + `i18next-browser-languagedetector`; `<html dir="rtl|ltr">` toggled on language change; preference persisted to `localStorage` and to `User.preferred_language` once authenticated. Tailwind uses logical properties (`ps-`, `pe-` / `rtl:` variants) instead of hardcoded `left`/`right`.
-- **Language independence:** UI language (interface) and document language (content understanding) are separate fields — `User.preferred_language` drives what language the LLM responds in; `Document.detected_language` is independent metadata used only for extraction/analysis quality, never for translation of the UI.
+- **Language independence:** UI language (interface) and proposal-document language (content understanding) are independent concerns — `User.preferred_language` drives what language the LLM responds in; the language a submitted proposal happens to be written in only affects extraction/analysis quality in `ProposalAnalysisService`, never UI translation. Since proposals aren't persisted, there is no stored `detected_language` field to carry between requests.
 
 ---
 
@@ -342,3 +342,23 @@ capstonepilot/
 ```
 
 Project tooling (`package.json`, `pyproject.toml`, Vite/Tailwind config, dependency installs) is deferred to **Iteration 3: Project Setup**.
+
+---
+
+## Frontend-Backend Wiring — Approved
+
+Iteration 9 (Backend APIs) shipped the REST layer; this pass replaced the frontend's hardcoded mock data with real calls against it, ahead of CrewAI integration (Iteration 10). Several design decisions came out of doing this for real rather than against a spec:
+
+**Auth is now real.** A `LoginPage` (`POST /auth/login`), an `AuthProvider` context (JWT in `localStorage`, hydrated via `GET /users/me` on load), and a `ProtectedRoute` guard wrap every `AppShell` route. The Topbar shows the actual logged-in user and role (`project_owner` → "Project Lead", `member` → "Team Member"), with a working logout. This wasn't optional — nearly every endpoint requires a bearer token, so nothing else could be wired without it first.
+
+**`ProjectMember` was added — a real gap in the original domain model.** The ERD only ever modeled `User.owns → Project`, with no concept of team membership. The frontend's "Team Members" UI (chips on Create Project, the Team card on Project Detail) had nothing to bind to. Added as its own table (`project_members`, unique on `project_id` + `user_id`), a repository, a `ProjectMemberService` (add by email / list / remove), and endpoints under `/projects/{id}/members`. Adding a member now requires them to be an already-registered user (looked up by email) — the old free-text "type any name" input couldn't survive contact with a real backend.
+
+**Documents were removed entirely — this was the biggest pivot.** The original architecture had a persisted `Document` entity + local-disk file storage. Wiring the frontend up against it exposed a real product decision: an uploaded project proposal isn't a project asset to archive, it's a one-time input to AI analysis. So:
+- The `Document` entity, table, repository, service, schemas, router, and the `FileStorage` port/adapter were all deleted (migration `d1d755ae53e9` drops the `documents` table and adds `project_members` in the same revision).
+- Replaced with `POST /projects/{id}/analyze-proposal`: accepts a PDF/DOCX/TXT file, extracts its text **in memory** (PyMuPDF / python-docx), and returns a result. The file is never written to disk or the database — it goes out of scope when the request completes.
+- Text extraction is real. Plan/Milestone/Task/RiskReport/Recommendation generation *from* that text is not — that's CrewAI's job (Iteration 10+), and the response is honestly scoped to what actually happens today (extraction), not what will happen once the orchestrator exists.
+- Consequence: Create Project became a two-stage flow. `ProjectMember` and the proposal upload both need a real `project_id` to attach to, the same constraint that forced the document-upload timing question in the first place. Stage 1 (name/description/dates) creates the project; stage 2 (team members + optional proposal analysis), shown on the same page once the project exists, was previously going to be document upload alone but generalized to cover both once the members gap surfaced.
+
+**Progress became project-scoped.** `/progress` (global, implicitly showing "the one project") moved to `/projects/{id}/progress`, reached via a "View Plan" action on Project Detail. Milestone completion % and status badges are computed client-side from real per-milestone task lists (`useQueries` fetches every milestone's tasks in parallel; the same query keys are reused inside each `MilestoneAccordion`, so React Query dedupes rather than double-fetching). Clicking a task's status icon cycles `pending → in_progress → done` against `PATCH /tasks/{id}` — the one piece of real interactivity beyond read-only display, matching the "Update Progress" operational action the human-in-the-loop section already allowed for.
+
+**Dashboard, Risks, and Recommendations stay on mock data, visibly.** All three depend on data that doesn't exist yet — `RiskReport`/`Recommendation` have no endpoints until Iterations 12-13, and Dashboard has no "which project" concept to aggregate around even where real data exists (Task/Milestone). Rather than half-wire them into something misleading, each carries a `PreviewDataBanner` stating plainly that it's preview data and when it connects.

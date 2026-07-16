@@ -1,66 +1,60 @@
-const projects = [
-  {
-    id: 'ml-traffic-optimization',
-    name: 'ML-Based Traffic Optimization',
-    description:
-      'A machine learning system that analyzes real-time traffic data to optimize signal timing and reduce congestion in urban intersections. The system will use LSTM neural networks for prediction and a React-based dashboard for monitoring.',
-    status: 'Active',
-    health: 'At Risk',
-    progress: 44,
-    startDate: '2026-07-15',
-    dueDate: '2026-12-01',
-    team: [
-      { name: 'Sarah Ahmed', color: 'navy' },
-      { name: 'Omar Al-Rashidi', color: 'blue' },
-      { name: 'Priya Nair', color: 'navy' },
-      { name: 'Lena Fischer', color: 'blue' },
-    ],
-    documents: [
-      { id: 'doc-1', name: 'Project_Proposal.pdf', size: 2_411_520, status: 'uploaded' },
-      { id: 'doc-2', name: 'Requirements_Spec.docx', size: 861_184, status: 'uploaded' },
-    ],
-  },
-  {
-    id: 'smart-campus-energy',
-    name: 'Smart Campus Energy Monitor',
-    description:
-      'An IoT-based system that tracks real-time energy consumption across campus buildings and uses predictive analytics to recommend efficiency improvements.',
-    status: 'Active',
-    health: 'Good',
-    progress: 65,
-    startDate: '2026-06-01',
-    dueDate: '2026-11-10',
-    team: [
-      { name: 'Sarah Ahmed', color: 'navy' },
-      { name: 'Khalid Al-Otaibi', color: 'blue' },
-      { name: 'Noor Al-Harbi', color: 'navy' },
-    ],
-    documents: [{ id: 'doc-3', name: 'Sensor_Architecture.pdf', size: 1_205_760, status: 'uploaded' }],
-  },
-  {
-    id: 'ai-study-planner',
-    name: 'AI-Powered Study Planner',
-    description:
-      'A mobile app that generates personalized study schedules using spaced-repetition algorithms and calendar integration.',
-    status: 'Planning',
-    health: 'Critical',
-    progress: 18,
-    startDate: '2026-05-20',
-    dueDate: '2026-10-05',
-    team: [
-      { name: 'Sarah Ahmed', color: 'navy' },
-      { name: 'Yousef Al-Dosari', color: 'blue' },
-    ],
-    documents: [],
-  },
-]
+import { apiClient } from '@/shared/lib/apiClient'
 
-function getProjects() {
-  return projects
+async function getProjects() {
+  const { data } = await apiClient.get('/projects')
+  return data
 }
 
-function getProjectById(id) {
-  return projects.find((project) => project.id === id)
+async function getProjectById(id) {
+  const { data } = await apiClient.get(`/projects/${id}`)
+  return data
 }
 
-export { getProjects, getProjectById }
+async function createProject(payload) {
+  const { data } = await apiClient.post('/projects', payload)
+  return data
+}
+
+async function updateProject(id, payload) {
+  const { data } = await apiClient.patch(`/projects/${id}`, payload)
+  return data
+}
+
+async function deleteProject(id) {
+  await apiClient.delete(`/projects/${id}`)
+}
+
+async function getProjectMembers(projectId) {
+  const { data } = await apiClient.get(`/projects/${projectId}/members`)
+  return data
+}
+
+async function addProjectMember(projectId, email) {
+  const { data } = await apiClient.post(`/projects/${projectId}/members`, { email })
+  return data
+}
+
+async function removeProjectMember(projectId, userId) {
+  await apiClient.delete(`/projects/${projectId}/members/${userId}`)
+}
+
+async function analyzeProposal(projectId, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await apiClient.post(`/projects/${projectId}/analyze-proposal`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+export {
+  getProjects,
+  getProjectById,
+  createProject,
+  updateProject,
+  deleteProject,
+  getProjectMembers,
+  addProjectMember,
+  removeProjectMember,
+  analyzeProposal,
+}

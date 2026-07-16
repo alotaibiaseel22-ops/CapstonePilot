@@ -11,19 +11,21 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.application.services.auth_service import AuthService  # noqa: E402
-from app.application.services.document_service import DocumentService  # noqa: E402
 from app.application.services.milestone_service import MilestoneService  # noqa: E402
+from app.application.services.project_member_service import (  # noqa: E402
+    ProjectMemberService,
+)
 from app.application.services.project_service import ProjectService  # noqa: E402
 from app.application.services.task_service import TaskService  # noqa: E402
 from app.domain.enums import TaskPriority, UserRole  # noqa: E402
-from app.infrastructure.db.repositories.document_repository import (  # noqa: E402
-    SqlAlchemyDocumentRepository,
-)
 from app.infrastructure.db.repositories.milestone_repository import (  # noqa: E402
     SqlAlchemyMilestoneRepository,
 )
 from app.infrastructure.db.repositories.plan_repository import (
     SqlAlchemyPlanRepository,  # noqa: E402
+)
+from app.infrastructure.db.repositories.project_member_repository import (  # noqa: E402
+    SqlAlchemyProjectMemberRepository,
 )
 from app.infrastructure.db.repositories.project_repository import (  # noqa: E402
     SqlAlchemyProjectRepository,
@@ -35,7 +37,6 @@ from app.infrastructure.db.repositories.user_repository import (
     SqlAlchemyUserRepository,  # noqa: E402
 )
 from app.infrastructure.db.session import SessionLocal  # noqa: E402
-from app.infrastructure.storage.file_storage import LocalFileStorage  # noqa: E402
 
 MILESTONES = [
     {
@@ -98,11 +99,15 @@ def main() -> None:
         project_service = ProjectService(
             SqlAlchemyProjectRepository(db), SqlAlchemyPlanRepository(db)
         )
+        member_service = ProjectMemberService(
+            SqlAlchemyProjectMemberRepository(db),
+            SqlAlchemyUserRepository(db),
+            SqlAlchemyProjectRepository(db),
+        )
         milestone_service = MilestoneService(
             SqlAlchemyMilestoneRepository(db), SqlAlchemyPlanRepository(db)
         )
         task_service = TaskService(SqlAlchemyTaskRepository(db))
-        document_service = DocumentService(SqlAlchemyDocumentRepository(db), LocalFileStorage())
 
         existing = SqlAlchemyUserRepository(db).get_by_email("sarah@capstonepilot.dev")
         if existing is not None:
@@ -115,6 +120,7 @@ def main() -> None:
             password="capstone123",
             role=UserRole.PROJECT_OWNER,
         )
+        member_emails = []
         for name, email in [
             ("Omar Al-Rashidi", "omar@capstonepilot.dev"),
             ("Priya Nair", "priya@capstonepilot.dev"),
@@ -123,6 +129,7 @@ def main() -> None:
             auth_service.register(
                 name=name, email=email, password="capstone123", role=UserRole.MEMBER
             )
+            member_emails.append(email)
         print(f"Created 4 users (project owner: {owner.email})")
 
         project = project_service.create_project(
@@ -139,6 +146,10 @@ def main() -> None:
         )
         print(f"Created project: {project.name} ({project.id})")
 
+        for email in member_emails:
+            member_service.add_member_by_email(project.id, email)
+        print(f"Added {len(member_emails)} team members to the project")
+
         for order, milestone_data in enumerate(MILESTONES):
             milestone = milestone_service.create_milestone(
                 project_id=project.id,
@@ -149,20 +160,6 @@ def main() -> None:
             for title, priority in milestone_data["tasks"]:
                 task_service.create_task(milestone_id=milestone.id, title=title, priority=priority)
         print(f"Created {len(MILESTONES)} milestones with tasks")
-
-        document_service.upload_document(
-            project_id=project.id,
-            filename="Project_Proposal.pdf",
-            content=b"%PDF-1.4 CapstonePilot demo seed document",
-            uploaded_by=owner.id,
-        )
-        document_service.upload_document(
-            project_id=project.id,
-            filename="Requirements_Spec.docx",
-            content=b"CapstonePilot demo seed document",
-            uploaded_by=owner.id,
-        )
-        print("Uploaded 2 seed documents")
 
         print("\nSeed complete. Log in with sarah@capstonepilot.dev / capstone123")
     finally:

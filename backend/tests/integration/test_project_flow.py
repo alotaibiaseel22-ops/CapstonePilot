@@ -50,6 +50,7 @@ def test_wrong_password_login_fails(client):
 def test_full_project_lifecycle(client):
     owner = register(client, "owner2@example.com", role="project_owner")
     headers = auth_headers(owner["access_token"])
+    member = register(client, "teammate2@example.com", role="member")
 
     create_resp = client.post(
         "/api/v1/projects",
@@ -79,18 +80,18 @@ def test_full_project_lifecycle(client):
     assert update_resp.status_code == 200
     assert update_resp.json()["status"] == "active"
 
-    # Documents
-    files = {"file": ("Project_Proposal.pdf", b"%PDF-1.4 fake content", "application/pdf")}
-    upload_resp = client.post(
-        f"/api/v1/projects/{project['id']}/documents", files=files, headers=headers
+    # Team members
+    add_member_resp = client.post(
+        f"/api/v1/projects/{project['id']}/members",
+        json={"email": "teammate2@example.com"},
+        headers=headers,
     )
-    assert upload_resp.status_code == 201, upload_resp.text
-    document = upload_resp.json()
-    assert document["filename"] == "Project_Proposal.pdf"
+    assert add_member_resp.status_code == 201, add_member_resp.text
+    assert add_member_resp.json()["email"] == "teammate2@example.com"
 
-    docs_resp = client.get(f"/api/v1/projects/{project['id']}/documents", headers=headers)
-    assert docs_resp.status_code == 200
-    assert len(docs_resp.json()) == 1
+    members_list_resp = client.get(f"/api/v1/projects/{project['id']}/members", headers=headers)
+    assert members_list_resp.status_code == 200
+    assert len(members_list_resp.json()) == 1
 
     # Milestones
     milestone_resp = client.post(
@@ -130,11 +131,13 @@ def test_full_project_lifecycle(client):
     # Cleanup deletes
     task_del = client.delete(f"/api/v1/tasks/{task['id']}", headers=headers)
     milestone_del = client.delete(f"/api/v1/milestones/{milestone['id']}", headers=headers)
-    document_del = client.delete(f"/api/v1/documents/{document['id']}", headers=headers)
+    member_del = client.delete(
+        f"/api/v1/projects/{project['id']}/members/{member['user']['id']}", headers=headers
+    )
     project_del = client.delete(f"/api/v1/projects/{project['id']}", headers=headers)
     assert task_del.status_code == 204
     assert milestone_del.status_code == 204
-    assert document_del.status_code == 204
+    assert member_del.status_code == 204
     assert project_del.status_code == 204
 
 
@@ -153,37 +156,104 @@ def test_unauthenticated_request_rejected(client):
     assert response.status_code == 401
 
 
-def test_document_upload_rejects_unsupported_type(client):
-    owner = register(client, "owner3@example.com", role="project_owner")
+def test_add_member_with_unknown_email_returns_404(client):
+    owner = register(client, "owner6@example.com", role="project_owner")
     headers = auth_headers(owner["access_token"])
-
     project = client.post(
         "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
     ).json()
 
     response = client.post(
-        f"/api/v1/projects/{project['id']}/documents",
+        f"/api/v1/projects/{project['id']}/members",
+        json={"email": "nobody@example.com"},
+        headers=headers,
+    )
+    assert response.status_code == 404
+
+
+def test_add_duplicate_member_returns_409(client):
+    owner = register(client, "owner7@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    register(client, "teammate7@example.com", role="member")
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+
+    first = client.post(
+        f"/api/v1/projects/{project['id']}/members",
+        json={"email": "teammate7@example.com"},
+        headers=headers,
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        f"/api/v1/projects/{project['id']}/members",
+        json={"email": "teammate7@example.com"},
+        headers=headers,
+    )
+    assert second.status_code == 409
+
+
+def test_analyze_proposal_extracts_text_and_does_not_persist_file(client):
+    owner = register(client, "owner8@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+
+    response = client.post(
+        f"/api/v1/projects/{project['id']}/analyze-proposal",
+        files={"file": ("proposal.txt", b"Build a traffic prediction system.", "text/plain")},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["message"] == "Project analyzed successfully — AI plan generated."
+    assert body["characters_extracted"] == len("Build a traffic prediction system.")
+    assert "traffic prediction" in body["preview"]
+
+
+def test_analyze_proposal_rejects_unsupported_type(client):
+    owner = register(client, "owner9@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+
+    response = client.post(
+        f"/api/v1/projects/{project['id']}/analyze-proposal",
         files={"file": ("virus.exe", b"nope", "application/octet-stream")},
         headers=headers,
     )
     assert response.status_code == 422
 
 
-def test_document_upload_rejects_oversized_file(client):
-    owner = register(client, "owner4@example.com", role="project_owner")
+def test_analyze_proposal_rejects_oversized_file(client):
+    owner = register(client, "owner10@example.com", role="project_owner")
     headers = auth_headers(owner["access_token"])
-
     project = client.post(
         "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
     ).json()
 
     oversized_content = b"0" * (20 * 1024 * 1024 + 1)
     response = client.post(
-        f"/api/v1/projects/{project['id']}/documents",
+        f"/api/v1/projects/{project['id']}/analyze-proposal",
         files={"file": ("big.txt", oversized_content, "text/plain")},
         headers=headers,
     )
     assert response.status_code == 422
+
+
+def test_analyze_proposal_for_nonexistent_project_returns_404(client):
+    owner = register(client, "owner11@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+
+    response = client.post(
+        "/api/v1/projects/00000000-0000-0000-0000-000000000000/analyze-proposal",
+        files={"file": ("proposal.txt", b"hello", "text/plain")},
+        headers=headers,
+    )
+    assert response.status_code == 404
 
 
 def test_get_nonexistent_project_returns_404(client):

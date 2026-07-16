@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     OPENROUTER_API_KEY: str = ""
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
-    UPLOAD_DIR: str = "./uploads"
 
 
 settings = Settings()

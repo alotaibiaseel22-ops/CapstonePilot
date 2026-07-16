@@ -1,85 +1,68 @@
+import { useParams, Link } from 'react-router-dom'
+import { useQueries } from '@tanstack/react-query'
+import { ArrowLeft } from 'lucide-react'
+import { LoadingState } from '@/shared/components/common/LoadingState'
+import { ErrorState } from '@/shared/components/common/ErrorState'
+import { useProject } from '@/features/projects/hooks/useProjects'
+import { getTasks } from '../api/milestones'
+import { useMilestones } from '../hooks/useMilestones'
 import { MilestoneAccordion } from '../components/MilestoneAccordion'
 
-const milestones = [
-  {
-    title: 'Requirements & Research',
-    status: 'Complete',
-    value: 100,
-    dueDate: 'Jul 19, 2026',
-    tasks: [
-      { title: 'Gather stakeholder requirements', priority: 'High', status: 'Done', value: 100 },
-      { title: 'Literature review on traffic prediction models', priority: 'Medium', status: 'Done', value: 100 },
-      { title: 'Define success metrics', priority: 'Medium', status: 'Done', value: 100 },
-      { title: 'Finalize project scope document', priority: 'High', status: 'Done', value: 100 },
-    ],
-  },
-  {
-    title: 'Data Pipeline & Preprocessing',
-    value: 72,
-    dueDate: 'Aug 2, 2026',
-    defaultOpen: true,
-    tasks: [
-      { title: 'Collect traffic sensor data', priority: 'High', status: 'Done', value: 100 },
-      { title: 'Clean and normalize dataset', priority: 'High', status: 'In Progress', value: 80 },
-      { title: 'Feature engineering', priority: 'Medium', status: 'In Progress', value: 55 },
-      { title: 'Train/test split and validation strategy', priority: 'Medium', status: 'Pending', value: 0 },
-    ],
-  },
-  {
-    title: 'Model Development',
-    value: 38,
-    dueDate: 'Aug 23, 2026',
-    defaultOpen: true,
-    tasks: [
-      { title: 'Implement LSTM baseline model', priority: 'High', status: 'In Progress', value: 65 },
-      { title: 'Hyperparameter tuning', priority: 'Medium', status: 'Pending', value: 0 },
-      { title: 'Model evaluation and benchmarking', priority: 'High', status: 'Pending', value: 0 },
-      { title: 'Integrate real-time prediction API', priority: 'High', status: 'Pending', value: 0 },
-    ],
-  },
-  {
-    title: 'Dashboard & Frontend',
-    value: 12,
-    dueDate: 'Sep 13, 2026',
-    defaultOpen: true,
-    tasks: [
-      { title: 'Design UI wireframes', priority: 'Medium', status: 'Done', value: 100 },
-      { title: 'Build React dashboard components', priority: 'High', status: 'In Progress', value: 20 },
-      { title: 'Integrate map visualization', priority: 'Medium', status: 'Pending', value: 0 },
-      { title: 'Connect to backend API', priority: 'High', status: 'Pending', value: 0 },
-    ],
-  },
-  {
-    title: 'Testing & Deployment',
-    value: 0,
-    dueDate: 'Oct 1, 2026',
-    tasks: [
-      { title: 'Write unit and integration test plan', priority: 'High', status: 'Pending', value: 0 },
-      { title: 'Set up CI pipeline', priority: 'Medium', status: 'Pending', value: 0 },
-      { title: 'User acceptance testing', priority: 'Medium', status: 'Pending', value: 0 },
-      { title: 'Deploy to production', priority: 'High', status: 'Pending', value: 0 },
-    ],
-  },
-]
-
 function ProgressPage() {
+  const { id } = useParams()
+  const { data: project, isLoading: projectLoading, isError: projectError } = useProject(id)
+  const { data: milestones, isLoading: milestonesLoading, isError: milestonesError } = useMilestones(id)
+
+  const taskQueries = useQueries({
+    queries: (milestones ?? []).map((m) => ({
+      queryKey: ['milestones', m.id, 'tasks'],
+      queryFn: () => getTasks(m.id),
+      enabled: Boolean(milestones),
+    })),
+  })
+
+  const isLoading = projectLoading || milestonesLoading
+  const isError = projectError || milestonesError
+
+  if (isLoading) return <LoadingState label="Loading project plan..." />
+  if (isError) return <ErrorState message="Couldn't load the project plan. Please try again." />
+
+  const allTasks = taskQueries.flatMap((q) => q.data ?? [])
+  const totalTasks = allTasks.length
+  const doneTasks = allTasks.filter((t) => t.status === 'done').length
+  const overallPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
+
   return (
     <div className="space-y-6">
+      <Link to={`/projects/${id}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gray-700">
+        <ArrowLeft className="size-4" />
+        Back to project
+      </Link>
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Project Plan</h1>
-          <p className="mt-1 text-muted-foreground">ML-Based Traffic Optimization &middot; 5 milestones &middot; 20 tasks</p>
+          <p className="mt-1 text-muted-foreground">
+            {project.name} &middot; {milestones.length} milestone{milestones.length === 1 ? '' : 's'} &middot;{' '}
+            {totalTasks} task{totalTasks === 1 ? '' : 's'}
+          </p>
         </div>
         <span className="rounded-full border border-border bg-white px-4 py-2 text-sm">
-          Overall <span className="font-bold text-blue-600">44%</span>
+          Overall <span className="font-bold text-blue-600">{overallPercent}%</span>
         </span>
       </div>
 
-      <div className="space-y-4">
-        {milestones.map((m) => (
-          <MilestoneAccordion key={m.title} {...m} />
-        ))}
-      </div>
+      {milestones.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border py-16 text-center text-muted-foreground">
+          No milestones yet for this project.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {milestones.map((milestone) => (
+            <MilestoneAccordion key={milestone.id} milestone={milestone} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

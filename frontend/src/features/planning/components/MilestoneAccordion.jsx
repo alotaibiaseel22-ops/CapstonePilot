@@ -3,6 +3,8 @@ import { Flag, ChevronDown, ChevronRight } from 'lucide-react'
 import { Card } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
 import { Progress } from '@/shared/components/ui/progress'
+import { LoadingState } from '@/shared/components/common/LoadingState'
+import { useTasks, useUpdateTaskStatus } from '../hooks/useTasks'
 import { TaskRow } from './TaskRow'
 
 function progressTone(value) {
@@ -12,16 +14,29 @@ function progressTone(value) {
   return { bar: 'amber', badge: 'bg-blue-100 text-blue-600' }
 }
 
-function MilestoneAccordion({ title, status, value, dueDate, tasks, defaultOpen = false }) {
+function formatDate(value) {
+  if (!value) return null
+  return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function MilestoneAccordion({ milestone, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
+  // Always fetched (not gated on `open`) so the collapsed header's progress
+  // summary is accurate immediately, not just after the user expands it.
+  const { data: tasks, isLoading } = useTasks(milestone.id)
+  const updateStatus = useUpdateTaskStatus(milestone.id)
+
+  const done = tasks?.filter((t) => t.status === 'done').length ?? 0
+  const total = tasks?.length ?? 0
+  const value = total > 0 ? Math.round((done / total) * 100) : 0
   const tone = progressTone(value)
-  const hasTasks = tasks.length > 0
+  const complete = total > 0 && done === total
 
   return (
     <Card className="overflow-hidden">
       <button
         type="button"
-        onClick={() => hasTasks && setOpen((v) => !v)}
+        onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-4 p-6 text-left"
       >
         <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${tone.badge}`}>
@@ -29,28 +44,41 @@ function MilestoneAccordion({ title, status, value, dueDate, tasks, defaultOpen 
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="font-bold text-gray-900">{title}</p>
-            {status && <Badge variant="success">{status}</Badge>}
+            <p className="font-bold text-gray-900">{milestone.title}</p>
+            {complete && <Badge variant="success">Complete</Badge>}
           </div>
           <div className="mt-2 flex items-center gap-3">
             <Progress value={value} color={tone.bar} className="max-w-xs" />
             <span className="shrink-0 text-sm font-medium text-gray-700">{value}%</span>
-            <span className="shrink-0 text-sm text-muted-foreground">Due {dueDate}</span>
+            {milestone.due_date && (
+              <span className="shrink-0 text-sm text-muted-foreground">Due {formatDate(milestone.due_date)}</span>
+            )}
           </div>
         </div>
-        {hasTasks &&
-          (open ? (
-            <ChevronDown className="size-5 shrink-0 text-gray-400" />
-          ) : (
-            <ChevronRight className="size-5 shrink-0 text-gray-400" />
-          ))}
+        {open ? (
+          <ChevronDown className="size-5 shrink-0 text-gray-400" />
+        ) : (
+          <ChevronRight className="size-5 shrink-0 text-gray-400" />
+        )}
       </button>
 
-      {open && hasTasks && (
+      {open && (
         <div>
-          {tasks.map((task) => (
-            <TaskRow key={task.title} {...task} />
-          ))}
+          {isLoading && <LoadingState label="Loading tasks..." />}
+          {!isLoading && total === 0 && (
+            <p className="border-t border-border px-6 py-4 text-sm text-muted-foreground">
+              No tasks yet for this milestone.
+            </p>
+          )}
+          {!isLoading &&
+            tasks?.map((task) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                updating={updateStatus.isPending}
+                onStatusChange={(status) => updateStatus.mutate({ taskId: task.id, status })}
+              />
+            ))}
         </div>
       )}
     </Card>

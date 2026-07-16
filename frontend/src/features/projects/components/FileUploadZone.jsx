@@ -2,7 +2,13 @@ import { useRef, useState } from 'react'
 import { UploadCloud } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 
-function FileUploadZone({ onFilesSelected, accept, className }) {
+function FileUploadZone({
+  onFilesSelected,
+  accept,
+  multiple = true,
+  formatsCaption = 'Supported formats: PDF, DOCX, PPTX, TXT · Max file size: 20 MB',
+  className,
+}) {
   const inputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
 
@@ -46,9 +52,16 @@ function FileUploadZone({ onFilesSelected, accept, className }) {
       <UploadCloud className={cn('mb-2 size-8', isDragging ? 'text-blue-600' : 'text-muted-foreground')} />
       <p className="text-sm font-medium text-gray-700">Drag &amp; Drop your project files here</p>
       <p className="text-sm text-blue-600">or click to browse</p>
-      <p className="mt-3 text-xs text-muted-foreground">Supported formats: PDF, DOCX, PPTX, TXT &middot; Max file size: 20 MB</p>
+      <p className="mt-3 text-xs text-muted-foreground">{formatsCaption}</p>
 
-      <input ref={inputRef} type="file" multiple accept={accept} onChange={handleInputChange} className="hidden" />
+      <input
+        ref={inputRef}
+        type="file"
+        multiple={multiple}
+        accept={accept}
+        onChange={handleInputChange}
+        className="hidden"
+      />
     </div>
   )
 }

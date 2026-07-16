@@ -1,34 +1,32 @@
 import { useParams, Link } from 'react-router-dom'
-import { TrendingUp, Users, FileText, CalendarClock } from 'lucide-react'
+import { Users, CalendarClock, Flag, ClipboardList } from 'lucide-react'
 import { StatCard } from '@/shared/components/common/StatCard'
+import { LoadingState } from '@/shared/components/common/LoadingState'
+import { ErrorState } from '@/shared/components/common/ErrorState'
 import { Card, CardHeader, CardTitle, CardContent } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
-import { Avatar } from '@/shared/components/ui/avatar'
 import { Button } from '@/shared/components/ui/button'
-import { getProjectById } from '../api/projects'
-import { DocumentsCard } from '../components/DocumentsCard'
+import { useProject } from '../hooks/useProjects'
+import { useProjectMembers } from '../hooks/useProjectMembers'
+import { useMilestones } from '@/features/planning/hooks/useMilestones'
+import { TeamMembersSection } from '../components/TeamMembersSection'
 
-const healthTone = { Good: 'success', 'At Risk': 'warning', Critical: 'destructive' }
-const TODAY = new Date('2026-07-09')
-
-function initialsOf(name) {
-  return name
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
-}
+const statusTone = { planning: 'default', active: 'info', completed: 'success' }
+const statusLabel = { planning: 'Planning', active: 'Active', completed: 'Completed' }
 
 function ProjectDetailPage() {
   const { id } = useParams()
-  const project = getProjectById(id)
+  const { data: project, isLoading, isError } = useProject(id)
+  const { data: members } = useProjectMembers(id)
+  const { data: milestones } = useMilestones(id)
 
-  if (!project) {
+  if (isLoading) return <LoadingState label="Loading project..." />
+
+  if (isError || !project) {
     return (
       <div className="space-y-4">
         <h1 className="text-3xl font-bold text-gray-900">Project not found</h1>
-        <p className="text-muted-foreground">This project doesn't exist or may have been removed.</p>
+        <ErrorState message="This project doesn't exist or may have been removed." />
         <Link to="/projects">
           <Button type="button" variant="outline">
             Back to Projects
@@ -38,50 +36,47 @@ function ProjectDetailPage() {
     )
   }
 
-  const daysRemaining = Math.ceil((new Date(project.dueDate) - TODAY) / (1000 * 60 * 60 * 24))
+  const daysRemaining = project.due_date
+    ? Math.ceil((new Date(project.due_date) - new Date()) / (1000 * 60 * 60 * 24))
+    : null
 
   return (
     <div className="space-y-6">
       <div>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
-          <Badge variant={healthTone[project.health]}>{project.health}</Badge>
-          <Badge>{project.status}</Badge>
+          <Badge variant={statusTone[project.status]}>{statusLabel[project.status] ?? project.status}</Badge>
         </div>
-        <p className="mt-2 max-w-3xl text-muted-foreground">{project.description}</p>
+        <p className="mt-2 max-w-3xl text-muted-foreground">
+          {project.description || 'No description provided.'}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={TrendingUp} tone="blue" value={`${project.progress}%`} label="Progress" />
-        <StatCard icon={Users} tone="purple" value={project.team.length} label="Team Members" />
-        <StatCard icon={FileText} tone="green" value={project.documents.length} label="Documents" />
+        <StatCard icon={Users} tone="purple" value={members?.length ?? '—'} label="Team Members" />
+        <StatCard icon={Flag} tone="blue" value={milestones?.length ?? '—'} label="Milestones" />
         <StatCard
           icon={CalendarClock}
           tone="amber"
-          value={daysRemaining > 0 ? daysRemaining : 0}
+          value={daysRemaining !== null ? Math.max(daysRemaining, 0) : '—'}
           label="Days Remaining"
         />
+        <Link to={`/projects/${id}/progress`} className="block">
+          <Card className="flex h-full items-center justify-center gap-2 text-blue-600 transition-shadow hover:shadow-md">
+            <ClipboardList className="size-5" />
+            <span className="font-semibold">View Plan</span>
+          </Card>
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Card className="xl:col-span-1">
-          <CardHeader>
-            <CardTitle>Team</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {project.team.map((member) => (
-              <div key={member.name} className="flex items-center gap-3">
-                <Avatar initials={initialsOf(member.name)} color={member.color} />
-                <span className="text-sm font-medium text-gray-800">{member.name}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <div className="xl:col-span-2">
-          <DocumentsCard initialDocuments={project.documents} />
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Team</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TeamMembersSection projectId={id} />
+        </CardContent>
+      </Card>
     </div>
   )
 }

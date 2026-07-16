@@ -1,5 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from './layout/AppShell'
+import { ProtectedRoute } from './layout/ProtectedRoute'
+import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { ProjectListPage } from '@/features/projects/pages/ProjectListPage'
 import { CreateProjectPage } from '@/features/projects/pages/CreateProjectPage'
@@ -10,18 +12,24 @@ import { RecommendationsPage } from '@/features/recommendations/pages/Recommenda
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 
 const router = createBrowserRouter([
+  { path: 'login', element: <LoginPage /> },
   {
-    element: <AppShell />,
+    element: <ProtectedRoute />,
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: 'dashboard', element: <DashboardPage /> },
-      { path: 'projects', element: <ProjectListPage /> },
-      { path: 'projects/new', element: <CreateProjectPage /> },
-      { path: 'projects/:id', element: <ProjectDetailPage /> },
-      { path: 'progress', element: <ProgressPage /> },
-      { path: 'risks', element: <RisksPage /> },
-      { path: 'recommendations', element: <RecommendationsPage /> },
-      { path: 'settings', element: <SettingsPage /> },
+      {
+        element: <AppShell />,
+        children: [
+          { index: true, element: <Navigate to="/dashboard" replace /> },
+          { path: 'dashboard', element: <DashboardPage /> },
+          { path: 'projects', element: <ProjectListPage /> },
+          { path: 'projects/new', element: <CreateProjectPage /> },
+          { path: 'projects/:id', element: <ProjectDetailPage /> },
+          { path: 'projects/:id/progress', element: <ProgressPage /> },
+          { path: 'risks', element: <RisksPage /> },
+          { path: 'recommendations', element: <RecommendationsPage /> },
+          { path: 'settings', element: <SettingsPage /> },
+        ],
+      },
     ],
   },
 ])

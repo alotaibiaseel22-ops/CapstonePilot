@@ -1,5 +1,6 @@
 import { TrendingUp, CircleCheck, TriangleAlert, Lightbulb } from 'lucide-react'
 import { StatCard } from '@/shared/components/common/StatCard'
+import { PreviewDataBanner } from '@/shared/components/common/PreviewDataBanner'
 import { ProjectHealthCard } from '../components/ProjectHealthCard'
 import { ProgressOverviewCard } from '../components/ProgressOverviewCard'
 import { ActivityFeed } from '../components/ActivityFeed'
@@ -15,6 +16,12 @@ function DashboardPage() {
           CapstonePilot is actively monitoring your projects &middot; Wednesday, July 9, 2026
         </p>
       </div>
+
+      <PreviewDataBanner>
+        This dashboard is still showing preview data. It aggregates across all of your projects and
+        depends on AI-generated risk/recommendation data, both of which connect once CrewAI
+        orchestration ships in Iteration 10+.
+      </PreviewDataBanner>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={TrendingUp} tone="blue" value="72%" label="Project Progress" delta="+8% this week" />

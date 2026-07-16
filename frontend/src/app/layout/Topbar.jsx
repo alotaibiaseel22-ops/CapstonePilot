@@ -1,9 +1,28 @@
-import { Menu, Bell, ChevronDown } from 'lucide-react'
+import { useState } from 'react'
+import { Menu, Bell, ChevronDown, LogOut } from 'lucide-react'
 import { Avatar } from '@/shared/components/ui/avatar'
+import { useAuth } from '@/app/providers/AuthProvider'
+
+const roleLabels = {
+  project_owner: 'Project Lead',
+  member: 'Team Member',
+}
+
+function initialsOf(name) {
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+}
 
 function Topbar({ onMenuClick }) {
+  const { user, logout } = useAuth()
+  const [menuOpen, setMenuOpen] = useState(false)
+
   return (
-    <header className="flex h-[73px] shrink-0 items-center justify-between border-b border-border bg-white px-6">
+    <header className="relative flex h-[73px] shrink-0 items-center justify-between border-b border-border bg-white px-6">
       <div className="flex items-center gap-4">
         <button
           type="button"
@@ -23,14 +42,45 @@ function Topbar({ onMenuClick }) {
           <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-red-500" />
         </button>
 
-        <button type="button" className="flex items-center gap-2">
-          <Avatar initials="SA" />
-          <span className="hidden text-left sm:block">
-            <span className="block text-sm font-semibold leading-tight text-gray-900">Sarah Ahmed</span>
-            <span className="block text-xs leading-tight text-muted-foreground">Project Lead</span>
-          </span>
-          <ChevronDown className="size-4 text-gray-400" />
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            className="flex items-center gap-2"
+          >
+            <Avatar initials={user ? initialsOf(user.name) : ''} />
+            <span className="hidden text-left sm:block">
+              <span className="block text-sm font-semibold leading-tight text-gray-900">
+                {user?.name}
+              </span>
+              <span className="block text-xs leading-tight text-muted-foreground">
+                {roleLabels[user?.role] ?? user?.role}
+              </span>
+            </span>
+            <ChevronDown className="size-4 text-gray-400" />
+          </button>
+
+          {menuOpen && (
+            <>
+              <button
+                type="button"
+                aria-label="Close menu"
+                className="fixed inset-0 z-40 cursor-default"
+                onClick={() => setMenuOpen(false)}
+              />
+              <div className="absolute right-0 top-12 z-50 w-44 rounded-lg border border-border bg-white py-1 shadow-md">
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-muted"
+                >
+                  <LogOut className="size-4" />
+                  Log out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   )

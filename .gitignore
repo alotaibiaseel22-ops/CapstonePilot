@@ -23,6 +23,5 @@ build/
 # Logs
 *.log
 
-# Local dev DB / uploads
+# Local dev DB
 backend/*.db
-backend/uploads/

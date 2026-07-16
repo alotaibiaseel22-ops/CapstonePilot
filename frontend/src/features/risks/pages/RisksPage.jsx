@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PreviewDataBanner } from '@/shared/components/common/PreviewDataBanner'
 import { RiskStatCard } from '../components/RiskStatCard'
 import { FilterTabs } from '../components/FilterTabs'
 import { RiskCard } from '../components/RiskCard'
@@ -78,6 +79,10 @@ function RisksPage() {
         <h1 className="text-3xl font-bold text-gray-900">Risk Analysis</h1>
         <p className="mt-1 text-muted-foreground">AI-detected risks across all monitored projects</p>
       </div>
+
+      <PreviewDataBanner>
+        Preview data — connects when Risk Analysis ships in Iteration 12.
+      </PreviewDataBanner>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
         <RiskStatCard value={counts.High} label="High Risk" tone="red" />

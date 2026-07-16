@@ -5,21 +5,23 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.application.services.auth_service import AuthService
-from app.application.services.document_service import DocumentService
 from app.application.services.milestone_service import MilestoneService
+from app.application.services.project_member_service import ProjectMemberService
 from app.application.services.project_service import ProjectService
+from app.application.services.proposal_analysis_service import ProposalAnalysisService
 from app.application.services.task_service import TaskService
 from app.domain.entities import User
 from app.domain.enums import UserRole
-from app.infrastructure.db.repositories.document_repository import SqlAlchemyDocumentRepository
 from app.infrastructure.db.repositories.milestone_repository import SqlAlchemyMilestoneRepository
 from app.infrastructure.db.repositories.plan_repository import SqlAlchemyPlanRepository
+from app.infrastructure.db.repositories.project_member_repository import (
+    SqlAlchemyProjectMemberRepository,
+)
 from app.infrastructure.db.repositories.project_repository import SqlAlchemyProjectRepository
 from app.infrastructure.db.repositories.task_repository import SqlAlchemyTaskRepository
 from app.infrastructure.db.repositories.user_repository import SqlAlchemyUserRepository
 from app.infrastructure.db.session import SessionLocal
 from app.infrastructure.security.jwt import decode_access_token
-from app.infrastructure.storage.file_storage import LocalFileStorage
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
@@ -40,8 +42,16 @@ def get_project_service(db: Session = Depends(get_db)) -> ProjectService:
     return ProjectService(SqlAlchemyProjectRepository(db), SqlAlchemyPlanRepository(db))
 
 
-def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
-    return DocumentService(SqlAlchemyDocumentRepository(db), LocalFileStorage())
+def get_project_member_service(db: Session = Depends(get_db)) -> ProjectMemberService:
+    return ProjectMemberService(
+        SqlAlchemyProjectMemberRepository(db),
+        SqlAlchemyUserRepository(db),
+        SqlAlchemyProjectRepository(db),
+    )
+
+
+def get_proposal_analysis_service() -> ProposalAnalysisService:
+    return ProposalAnalysisService()
 
 
 def get_milestone_service(db: Session = Depends(get_db)) -> MilestoneService:

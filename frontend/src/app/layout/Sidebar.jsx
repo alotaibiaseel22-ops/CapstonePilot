@@ -1,19 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import {
-  LayoutGrid,
-  Folder,
-  TrendingUp,
-  TriangleAlert,
-  Lightbulb,
-  Settings,
-  Cpu,
-} from 'lucide-react'
+import { LayoutGrid, Folder, TriangleAlert, Lightbulb, Settings, Cpu } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
   { to: '/projects', label: 'Projects', icon: Folder },
-  { to: '/progress', label: 'Progress', icon: TrendingUp },
   { to: '/risks', label: 'Risks', icon: TriangleAlert },
   { to: '/recommendations', label: 'Recommendations', icon: Lightbulb },
   { to: '/settings', label: 'Settings', icon: Settings },
