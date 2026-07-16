@@ -1,5 +1,5 @@
 import { TrendingUp, CircleCheck, TriangleAlert, Lightbulb } from 'lucide-react'
-import { StatCard } from '../components/StatCard'
+import { StatCard } from '@/shared/components/common/StatCard'
 import { ProjectHealthCard } from '../components/ProjectHealthCard'
 import { ProgressOverviewCard } from '../components/ProgressOverviewCard'
 import { ActivityFeed } from '../components/ActivityFeed'

@@ -22,7 +22,7 @@ function StatCard({ icon: Icon, tone = 'blue', value, label, delta, deltaTone = 
         </span>
         <p className="mt-4 text-3xl font-bold text-gray-900">{value}</p>
         <p className="text-sm text-muted-foreground">{label}</p>
-        <p className={cn('mt-2 text-sm font-medium', deltaTones[deltaTone])}>{delta}</p>
+        {delta && <p className={cn('mt-2 text-sm font-medium', deltaTones[deltaTone])}>{delta}</p>}
       </CardContent>
     </Card>
   )
