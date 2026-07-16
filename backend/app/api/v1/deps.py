@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.application.services.auth_service import AuthService
+from app.application.services.invitation_service import InvitationService
 from app.application.services.milestone_service import MilestoneService
 from app.application.services.project_member_service import ProjectMemberService
 from app.application.services.project_service import ProjectService
@@ -12,6 +13,7 @@ from app.application.services.proposal_analysis_service import ProposalAnalysisS
 from app.application.services.task_service import TaskService
 from app.domain.entities import User
 from app.domain.enums import UserRole
+from app.infrastructure.db.repositories.invitation_repository import SqlAlchemyInvitationRepository
 from app.infrastructure.db.repositories.milestone_repository import SqlAlchemyMilestoneRepository
 from app.infrastructure.db.repositories.plan_repository import SqlAlchemyPlanRepository
 from app.infrastructure.db.repositories.project_member_repository import (
@@ -43,7 +45,12 @@ def get_project_service(db: Session = Depends(get_db)) -> ProjectService:
 
 
 def get_project_member_service(db: Session = Depends(get_db)) -> ProjectMemberService:
-    return ProjectMemberService(
+    return ProjectMemberService(SqlAlchemyProjectMemberRepository(db), SqlAlchemyUserRepository(db))
+
+
+def get_invitation_service(db: Session = Depends(get_db)) -> InvitationService:
+    return InvitationService(
+        SqlAlchemyInvitationRepository(db),
         SqlAlchemyProjectMemberRepository(db),
         SqlAlchemyUserRepository(db),
         SqlAlchemyProjectRepository(db),

@@ -29,11 +29,6 @@ async function getProjectMembers(projectId) {
   return data
 }
 
-async function addProjectMember(projectId, email) {
-  const { data } = await apiClient.post(`/projects/${projectId}/members`, { email })
-  return data
-}
-
 async function removeProjectMember(projectId, userId) {
   await apiClient.delete(`/projects/${projectId}/members/${userId}`)
 }
@@ -54,7 +49,6 @@ export {
   updateProject,
   deleteProject,
   getProjectMembers,
-  addProjectMember,
   removeProjectMember,
   analyzeProposal,
 }

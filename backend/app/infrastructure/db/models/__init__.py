@@ -1,5 +1,6 @@
 from .agent_run import AgentRunModel
 from .approval_decision import ApprovalDecisionModel
+from .invitation import InvitationModel
 from .milestone import MilestoneModel
 from .plan import PlanModel
 from .project import ProjectModel
@@ -13,6 +14,7 @@ __all__ = [
     "UserModel",
     "ProjectModel",
     "ProjectMemberModel",
+    "InvitationModel",
     "PlanModel",
     "MilestoneModel",
     "TaskModel",

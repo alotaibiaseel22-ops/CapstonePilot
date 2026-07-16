@@ -1,9 +1,9 @@
 import { useMutation } from '@tanstack/react-query'
 import { analyzeProposal } from '../api/projects'
 
-function useAnalyzeProposal(projectId) {
+function useAnalyzeProposal() {
   return useMutation({
-    mutationFn: (file) => analyzeProposal(projectId, file),
+    mutationFn: ({ projectId, file }) => analyzeProposal(projectId, file),
   })
 }
 

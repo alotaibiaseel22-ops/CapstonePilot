@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.routers import (
     auth,
+    invitations,
     milestones,
     project_members,
     projects,
@@ -26,6 +27,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(projects.router, prefix="/api/v1")
 app.include_router(project_members.router, prefix="/api/v1")
+app.include_router(invitations.router, prefix="/api/v1")
 app.include_router(proposals.router, prefix="/api/v1")
 app.include_router(milestones.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")

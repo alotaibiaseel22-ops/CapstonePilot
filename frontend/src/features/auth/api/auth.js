@@ -11,9 +11,14 @@ async function login(email, password) {
   return data
 }
 
+async function register({ name, email, password, role }) {
+  const { data } = await apiClient.post('/auth/register', { name, email, password, role })
+  return data
+}
+
 async function getCurrentUser() {
   const { data } = await apiClient.get('/users/me')
   return data
 }
 
-export { login, getCurrentUser }
+export { login, register, getCurrentUser }

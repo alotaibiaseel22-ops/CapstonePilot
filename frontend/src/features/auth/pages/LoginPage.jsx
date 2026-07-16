@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Cpu, Mail, Lock } from 'lucide-react'
 import { Card, CardContent } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
@@ -81,6 +81,13 @@ function LoginPage() {
                 {submitting ? 'Signing in...' : 'Sign in'}
               </Button>
             </form>
+
+            <p className="mt-4 text-center text-sm text-muted-foreground">
+              Don&apos;t have an account?{' '}
+              <Link to="/register" state={location.state} className="font-medium text-blue-600 hover:underline">
+                Create one
+              </Link>
+            </p>
           </CardContent>
         </Card>
       </div>

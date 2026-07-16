@@ -3,7 +3,7 @@ from enum import StrEnum
 
 class UserRole(StrEnum):
     PROJECT_OWNER = "project_owner"
-    MEMBER = "member"
+    COLLABORATOR = "collaborator"
 
 
 class Language(StrEnum):
@@ -58,3 +58,9 @@ class AgentRunStatus(StrEnum):
 class ApprovalDecisionValue(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+class InvitationStatus(StrEnum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REVOKED = "revoked"

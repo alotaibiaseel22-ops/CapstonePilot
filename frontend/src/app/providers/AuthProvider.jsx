@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { login as loginRequest, getCurrentUser } from '@/features/auth/api/auth'
+import { login as loginRequest, register as registerRequest, getCurrentUser } from '@/features/auth/api/auth'
 
 const TOKEN_KEY = 'capstonepilot_token'
 
@@ -33,6 +33,13 @@ function AuthProvider({ children }) {
     setStatus('authenticated')
   }
 
+  async function register(fields) {
+    const data = await registerRequest(fields)
+    localStorage.setItem(TOKEN_KEY, data.access_token)
+    setUser(data.user)
+    setStatus('authenticated')
+  }
+
   function logout() {
     localStorage.removeItem(TOKEN_KEY)
     setUser(null)
@@ -40,7 +47,9 @@ function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, status, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, status, login, register, logout }}>
+      {children}
+    </AuthContext.Provider>
   )
 }
 

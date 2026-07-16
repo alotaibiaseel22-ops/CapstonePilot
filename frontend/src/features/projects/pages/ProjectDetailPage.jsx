@@ -1,11 +1,12 @@
 import { useParams, Link } from 'react-router-dom'
-import { Users, CalendarClock, Flag, ClipboardList } from 'lucide-react'
+import { Users, CalendarClock, Flag, ClipboardList, Settings } from 'lucide-react'
 import { StatCard } from '@/shared/components/common/StatCard'
 import { LoadingState } from '@/shared/components/common/LoadingState'
 import { ErrorState } from '@/shared/components/common/ErrorState'
 import { Card, CardHeader, CardTitle, CardContent } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
+import { useAuth } from '@/app/providers/AuthProvider'
 import { useProject } from '../hooks/useProjects'
 import { useProjectMembers } from '../hooks/useProjectMembers'
 import { useMilestones } from '@/features/planning/hooks/useMilestones'
@@ -16,6 +17,7 @@ const statusLabel = { planning: 'Planning', active: 'Active', completed: 'Comple
 
 function ProjectDetailPage() {
   const { id } = useParams()
+  const { user } = useAuth()
   const { data: project, isLoading, isError } = useProject(id)
   const { data: members } = useProjectMembers(id)
   const { data: milestones } = useMilestones(id)
@@ -39,21 +41,32 @@ function ProjectDetailPage() {
   const daysRemaining = project.due_date
     ? Math.ceil((new Date(project.due_date) - new Date()) / (1000 * 60 * 60 * 24))
     : null
+  const isOwner = user?.id === project.owner_id
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
-          <Badge variant={statusTone[project.status]}>{statusLabel[project.status] ?? project.status}</Badge>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
+            <Badge variant={statusTone[project.status]}>{statusLabel[project.status] ?? project.status}</Badge>
+          </div>
+          <p className="mt-2 max-w-3xl text-muted-foreground">
+            {project.description || 'No description provided.'}
+          </p>
         </div>
-        <p className="mt-2 max-w-3xl text-muted-foreground">
-          {project.description || 'No description provided.'}
-        </p>
+        {isOwner && (
+          <Link to={`/projects/${id}/settings`}>
+            <Button type="button" variant="outline">
+              <Settings className="size-4" />
+              Settings
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Users} tone="purple" value={members?.length ?? '—'} label="Team Members" />
+        <StatCard icon={Users} tone="purple" value={members?.length ?? '—'} label="Collaborators" />
         <StatCard icon={Flag} tone="blue" value={milestones?.length ?? '—'} label="Milestones" />
         <StatCard
           icon={CalendarClock}
@@ -74,7 +87,7 @@ function ProjectDetailPage() {
           <CardTitle>Team</CardTitle>
         </CardHeader>
         <CardContent>
-          <TeamMembersSection projectId={id} />
+          <TeamMembersSection projectId={id} ownerId={project.owner_id} />
         </CardContent>
       </Card>
     </div>

@@ -20,7 +20,7 @@ class AuthService:
         name: str,
         email: str,
         password: str,
-        role: UserRole = UserRole.MEMBER,
+        role: UserRole = UserRole.COLLABORATOR,
         preferred_language: Language = Language.EN,
     ) -> User:
         if self._users.get_by_email(email) is not None:

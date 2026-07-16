@@ -1,7 +1,7 @@
 # CapstonePilot — Iteration 1: System Architecture
 
 **Status:** Approved
-**Decisions locked in:** Monorepo · LLM via OpenRouter · FastAPI BackgroundTasks + DB polling for async jobs · JWT auth with roles (`project_owner`, `member`)
+**Decisions locked in:** Monorepo · LLM via OpenRouter · FastAPI BackgroundTasks + DB polling for async jobs · JWT auth with roles (`project_owner`, `collaborator`)
 
 ---
 
@@ -22,14 +22,14 @@ Everything below exists to serve those three points, kept as simple as it can be
 ```mermaid
 C4Context
 title CapstonePilot — System Context
-Person(leader, "Project Lead", "Creates projects, uploads docs, approves plans/replans")
-Person(member, "Team Member", "Views project, updates own task status")
+Person(owner, "Project Owner", "Creates projects, uploads spec for AI analysis, approves plans/replans, invites collaborators")
+Person(collaborator, "Collaborator", "Accepts an invitation, views the shared dashboard, updates assigned tasks")
 System(cp, "CapstonePilot", "AI Project Manager: orchestrates planning, monitoring, risk, replanning")
 System_Ext(llm, "OpenRouter", "LLM gateway — model-agnostic completion API")
-System_Ext(db, "PostgreSQL", "System of record: projects, plans, tasks, documents, decisions")
+System_Ext(db, "PostgreSQL", "System of record: projects, plans, tasks, invitations, decisions")
 
-Rel(leader, cp, "Creates project, uploads docs, approves")
-Rel(member, cp, "Updates task progress")
+Rel(owner, cp, "Creates project, uploads spec, approves, invites")
+Rel(collaborator, cp, "Updates task progress")
 Rel(cp, llm, "Agent reasoning calls")
 Rel(cp, db, "Reads/writes state")
 ```
@@ -48,18 +48,18 @@ capstonepilot/
 ```mermaid
 C4Container
 title CapstonePilot — Containers
-Person(leader, "Project Lead")
-Person(member, "Team Member")
+Person(owner, "Project Owner")
+Person(collaborator, "Collaborator")
 
 Container(spa, "Frontend SPA", "React + Vite", "Dashboard, project mgmt, plan review/approval UI, bilingual (AR/EN, RTL/LTR)")
 Container(api, "Backend API", "FastAPI", "REST API, auth, orchestration trigger, job status")
 Container(orch, "Orchestrator + Agents", "CrewAI Flow", "Planner, Progress Monitor, Risk, Recommendation, Doc Analysis, Reporting agents")
 Container(rules, "Decision Engine", "Python module", "Deterministic rules: deadlines, workload, risk thresholds")
-ContainerDb(pg, "PostgreSQL", "Database", "Projects, ProjectMembers, Plans (versioned), Tasks, AgentRuns, Approvals")
+ContainerDb(pg, "PostgreSQL", "Database", "Projects, ProjectMembers, Invitations, Plans (versioned), Tasks, AgentRuns, Approvals")
 System_Ext(openrouter, "OpenRouter", "LLM Gateway")
 
-Rel(leader, spa, "Uses")
-Rel(member, spa, "Uses")
+Rel(owner, spa, "Uses")
+Rel(collaborator, spa, "Uses")
 Rel(spa, api, "HTTPS/JSON, Axios")
 Rel(api, orch, "Invokes via BackgroundTasks")
 Rel(orch, rules, "Calls for objective signals")
@@ -111,7 +111,7 @@ flowchart TD
     A[Trigger: new project / task update / schedule tick] --> B[Orchestrator Flow starts]
     B --> C[Documentation Analysis Crew\n(only on new/updated docs)]
     C --> D[Planner Crew\ndrafts Plan v_n]
-    D --> E{Project Lead review}
+    D --> E{Project Owner review}
     E -->|Edit/Reject| D
     E -->|Approve| F[Plan v_n: approved\nOrchestrator executes\ntasks/milestones]
     F --> G[Progress Monitoring Crew\n(continuous)]
@@ -120,7 +120,7 @@ flowchart TD
     H -->|Risk threshold breached| I[Risk Analysis Crew]
     I --> J[Recommendation Crew]
     J --> K[Orchestrator assembles\nReplan Proposal = Plan v_n+1 draft]
-    K --> L{Project Lead approves replan?}
+    K --> L{Project Owner approves replan?}
     L -->|No| G
     L -->|Yes| F
 ```
@@ -154,6 +154,8 @@ erDiagram
     USER ||--o{ TASK : "assigned to"
     PROJECT ||--o{ PROJECT_MEMBER : has
     USER ||--o{ PROJECT_MEMBER : "belongs to"
+    PROJECT ||--o{ INVITATION : has
+    USER ||--o{ INVITATION : invites
     PROJECT ||--o{ PLAN : "has versions of"
     PLAN ||--o{ MILESTONE : contains
     MILESTONE ||--o{ TASK : contains
@@ -167,7 +169,7 @@ erDiagram
         uuid id
         string name
         string email
-        string role "project_owner | member"
+        string role "project_owner | collaborator"
         string preferred_language "ar | en"
     }
     PROJECT {
@@ -182,6 +184,17 @@ erDiagram
         uuid project_id
         uuid user_id
         timestamp added_at
+    }
+    INVITATION {
+        uuid id
+        uuid project_id
+        string email "null for a shareable link invite"
+        string token
+        string status "pending|accepted|revoked"
+        uuid invited_by
+        uuid accepted_by
+        timestamp created_at
+        timestamp accepted_at
     }
     PLAN {
         uuid id
@@ -252,10 +265,10 @@ erDiagram
 ## 9. Auth & RBAC
 
 - FastAPI `OAuth2PasswordBearer` + JWT (access token; refresh token deferred unless requested).
-- Passwords hashed with bcrypt (`passlib`).
-- Two roles: `project_owner`, `member`. Enforced via a `require_role(...)` FastAPI dependency, not scattered `if` checks in handlers. Displayed in the UI as **"Project Lead"** and **"Team Member"** respectively — the role name deliberately does not assume a faculty/academic supervisor exists; `project_owner` is simply the team member who created the project and holds approval authority within it, a peer role rather than an authority figure.
-- **Project Owner–only:** approve/reject Plan versions and Replan proposals, upload strategic documents, invite members, edit approved plan structure.
-- **Member:** view project/plan/tasks, update status of tasks assigned to them.
+- Passwords hashed with `bcrypt` directly (not via `passlib` — see the frontend-backend-wiring changelog below for why).
+- CapstonePilot is built for **student teams only**, not academic supervisors. Two roles, both peers on the team: `project_owner`, `collaborator`. Enforced via a `require_role(...)` FastAPI dependency plus a per-project ownership check (`ProjectService.assert_owner` / `InvitationService._assert_owner`) — a global `project_owner` role lets you create *your own* projects, it does not grant rights over projects you don't own. Displayed in the UI as **"Project Owner"** and **"Collaborator"**.
+- **Project Owner:** creates projects, uploads a spec for AI analysis, invites Collaborators (by email or shareable link), manages project settings, approves Plan/Replan proposals, can delete the project.
+- **Collaborator:** accepts an invitation, views the shared dashboard, updates assigned tasks. Cannot create projects, cannot upload a project specification, cannot delete a project.
 - Every approval (`ApprovalDecision`) is stored, not just applied — this is the audit trail the "human in the loop" requirement implies.
 
 ---
@@ -349,7 +362,7 @@ Project tooling (`package.json`, `pyproject.toml`, Vite/Tailwind config, depende
 
 Iteration 9 (Backend APIs) shipped the REST layer; this pass replaced the frontend's hardcoded mock data with real calls against it, ahead of CrewAI integration (Iteration 10). Several design decisions came out of doing this for real rather than against a spec:
 
-**Auth is now real.** A `LoginPage` (`POST /auth/login`), an `AuthProvider` context (JWT in `localStorage`, hydrated via `GET /users/me` on load), and a `ProtectedRoute` guard wrap every `AppShell` route. The Topbar shows the actual logged-in user and role (`project_owner` → "Project Lead", `member` → "Team Member"), with a working logout. This wasn't optional — nearly every endpoint requires a bearer token, so nothing else could be wired without it first.
+**Auth is now real.** A `LoginPage` (`POST /auth/login`), an `AuthProvider` context (JWT in `localStorage`, hydrated via `GET /users/me` on load), and a `ProtectedRoute` guard wrap every `AppShell` route. The Topbar shows the actual logged-in user and role, with a working logout (role labels were renamed to "Project Owner"/"Collaborator" in the pass documented further below). This wasn't optional — nearly every endpoint requires a bearer token, so nothing else could be wired without it first.
 
 **`ProjectMember` was added — a real gap in the original domain model.** The ERD only ever modeled `User.owns → Project`, with no concept of team membership. The frontend's "Team Members" UI (chips on Create Project, the Team card on Project Detail) had nothing to bind to. Added as its own table (`project_members`, unique on `project_id` + `user_id`), a repository, a `ProjectMemberService` (add by email / list / remove), and endpoints under `/projects/{id}/members`. Adding a member now requires them to be an already-registered user (looked up by email) — the old free-text "type any name" input couldn't survive contact with a real backend.
 
@@ -362,3 +375,27 @@ Iteration 9 (Backend APIs) shipped the REST layer; this pass replaced the fronte
 **Progress became project-scoped.** `/progress` (global, implicitly showing "the one project") moved to `/projects/{id}/progress`, reached via a "View Plan" action on Project Detail. Milestone completion % and status badges are computed client-side from real per-milestone task lists (`useQueries` fetches every milestone's tasks in parallel; the same query keys are reused inside each `MilestoneAccordion`, so React Query dedupes rather than double-fetching). Clicking a task's status icon cycles `pending → in_progress → done` against `PATCH /tasks/{id}` — the one piece of real interactivity beyond read-only display, matching the "Update Progress" operational action the human-in-the-loop section already allowed for.
 
 **Dashboard, Risks, and Recommendations stay on mock data, visibly.** All three depend on data that doesn't exist yet — `RiskReport`/`Recommendation` have no endpoints until Iterations 12-13, and Dashboard has no "which project" concept to aggregate around even where real data exists (Task/Milestone). Rather than half-wire them into something misleading, each carries a `PreviewDataBanner` stating plainly that it's preview data and when it connects.
+
+---
+
+## Project Owner / Collaborator Simplification — Approved
+
+CapstonePilot is for student capstone teams, not academic supervisors. This pass simplified the role model and the creation flow to match that directly, rather than the more general RBAC shape the earlier iterations had assumed.
+
+**Role rename, all the way through, not just labels.** `member` → `collaborator` (the enum value itself, not just the UI string) across the domain, database, seed data, and tests. `project_owner` keeps its name but is now displayed as **"Project Owner"** (not "Project Lead" — that was the previous pass's guess before this session specified exact terminology). `collaborator` displays as **"Collaborator"**. There is no third role and no supervisor concept anywhere in the system.
+
+**A real authorization gap got fixed while touching this code.** `require_role(PROJECT_OWNER)` only ever checked a caller's *global* role — it never checked whether they owned the *specific* project being mutated. Any project-owner-role user could previously PATCH or DELETE any other owner's project. Since "Collaborator cannot delete the project" only means something if "Project Owner can" is actually scoped to *their* project, this was fixed now: `ProjectService.assert_owner` and `InvitationService._assert_owner` both check `project.owner_id == requesting_user.id`, not just the role claim. Covered by `test_only_the_owning_project_owner_can_update_or_delete`.
+
+**Direct "add member by email" was replaced with real invitations — Collaborators now consent.** The previous pass let a Project Owner add *any* registered user to a project just by typing their email, no acceptance step. That's gone. A new `Invitation` entity (table `invitations`: `project_id`, `email` nullable, unique `token`, `status` pending/accepted/revoked, `invited_by`, `accepted_by`/`accepted_at`) backs two flows:
+- **Email invite:** `POST /projects/{id}/invitations` with one or more addresses. Single-use per email — accepting requires the authenticated user's email to match the invitation, and flips it to `accepted`. If the address isn't registered yet, the invitation just sits `pending`; `GET /invitations/mine` (matched by the current user's email) is how it becomes visible once they do register and log in — no email-sending infrastructure exists, so this is the whole delivery mechanism today. The domain layer doesn't assume SMTP either way, so plugging in real delivery later is additive, not a rewrite.
+- **Link invite:** `POST /projects/{id}/invitations/link` gets-or-creates one reusable invitation per project (`email = NULL`). Anyone who calls `POST /invitations/{token}/accept` while authenticated joins — multiple people can use the same link, and accepting does *not* flip its status, so it stays valid until the owner explicitly revokes it (`DELETE /invitations/{id}`). No expiry timer, matching "expire only if the owner revokes it."
+
+Both flows funnel into the same `ProjectMemberService.add_member(project_id, user_id)` for the actual membership row — `Invitation` is a consent/pending layer in front of `ProjectMember`, not a replacement for it.
+
+**Create Project is now the literal 4-step flow requested:** Name → Description → Upload Project Specification (optional, PDF/DOCX) → **Generate AI Project Plan**. Creation and proposal analysis happen together behind that one button (create the project, then analyze the file if one was provided) rather than as two separate stages — the previous pass's "create, then optionally upload after" became "fill everything in, then one combined action" once Team Members moved out of this page entirely. Start Date/Deadline stayed as optional fields (kept, not dropped, per this session's direction) but are visually secondary to the 4 numbered steps.
+
+**"Invite Collaborators" now lives in Project Settings, not on the creation page.** A new `/projects/{id}/settings` route (Project Owner-only, both via a frontend check on `project.owner_id` and the backend's real ownership check) holds project name/description editing, the email-invite form, the "copy invite link" action, a list of sent invitations with revoke, and project deletion behind a confirm step. Create Project's post-creation success state links here ("Invite Team Members") instead of duplicating the invite UI on two pages.
+
+**A Register page and public routing exist now, for one reason: the link-invite flow requires it.** "Anyone opening the link should log in if they have an account, otherwise register first, then automatically join" isn't satisfiable without a real registration page, so one was built (`/register`, public, auto-login on success like `/login`). `/invite/:token` sits behind `ProtectedRoute` — an unauthenticated visitor is redirected to `/login` with the invite path preserved as the post-auth destination, exactly like any other protected route; the accept call fires once auth resolves.
+
+Verified: 24 backend tests (up from 20 — added ownership-boundary, email-invite-pending, duplicate-member, wrong-email-acceptance, revoked-invitation, and link-reusability cases; removed the direct-add-member tests since that capability no longer exists), ruff clean, frontend build and oxlint clean. Same limitation as every prior pass: no browser tool here, so the actual in-browser flows (register → auto-join via link, email invite → accept from the pending-invitations view, settings-page delete confirmation) have not been visually verified.

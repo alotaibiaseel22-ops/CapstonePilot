@@ -10,7 +10,7 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
-    role: UserRole = UserRole.MEMBER
+    role: UserRole = UserRole.COLLABORATOR
     preferred_language: Language = Language.EN
 
 

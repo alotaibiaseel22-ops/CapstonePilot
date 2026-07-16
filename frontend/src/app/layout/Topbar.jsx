@@ -4,8 +4,8 @@ import { Avatar } from '@/shared/components/ui/avatar'
 import { useAuth } from '@/app/providers/AuthProvider'
 
 const roleLabels = {
-  project_owner: 'Project Lead',
-  member: 'Team Member',
+  project_owner: 'Project Owner',
+  collaborator: 'Collaborator',
 }
 
 function initialsOf(name) {

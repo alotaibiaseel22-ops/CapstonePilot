@@ -11,6 +11,10 @@ class ProjectNotFoundError(Exception):
     pass
 
 
+class NotProjectOwnerError(Exception):
+    pass
+
+
 class ProjectService:
     def __init__(self, project_repository: ProjectRepository, plan_repository: PlanRepository):
         self._projects = project_repository
@@ -61,16 +65,25 @@ class ProjectService:
             raise ProjectNotFoundError(f"Project {project_id} not found")
         return project
 
+    def assert_owner(self, project_id: uuid.UUID, user_id: uuid.UUID) -> Project:
+        """Verifies user_id owns this specific project - a global 'project_owner'
+        role alone does not grant rights over every project, only the ones you own."""
+        project = self.get_project(project_id)
+        if project.owner_id != user_id:
+            raise NotProjectOwnerError("Only this project's owner can do that")
+        return project
+
     def update_project(
         self,
         project_id: uuid.UUID,
+        requesting_user_id: uuid.UUID,
         name: str | None = None,
         description: str | None = None,
         status: ProjectStatus | None = None,
         start_date: date | None = None,
         due_date: date | None = None,
     ) -> Project:
-        project = self.get_project(project_id)
+        project = self.assert_owner(project_id, requesting_user_id)
         if name is not None:
             project.name = name
         if description is not None:
@@ -83,7 +96,8 @@ class ProjectService:
             project.due_date = due_date
         return self._projects.update(project)
 
-    def delete_project(self, project_id: uuid.UUID) -> None:
+    def delete_project(self, project_id: uuid.UUID, requesting_user_id: uuid.UUID) -> None:
+        self.assert_owner(project_id, requesting_user_id)
         self._projects.delete(project_id)
 
     def get_current_plan(self, project_id: uuid.UUID) -> Plan:

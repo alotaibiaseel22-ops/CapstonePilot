@@ -3,17 +3,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from app.application.ports.project_member_repository import ProjectMemberRepository
-from app.application.ports.project_repository import ProjectRepository
 from app.application.ports.user_repository import UserRepository
 from app.domain.entities import ProjectMember, User
-
-
-class ProjectMemberNotFoundError(Exception):
-    pass
-
-
-class UserNotFoundError(Exception):
-    pass
 
 
 class AlreadyAMemberError(Exception):
@@ -30,35 +21,29 @@ class ProjectMemberInfo:
 
 
 class ProjectMemberService:
+    """Manages who is actually on a project. Membership is only ever created
+    via InvitationService.accept_invitation - there is no direct "add by
+    email" path anymore, since a Collaborator must consent by accepting an
+    invitation rather than being added unilaterally."""
+
     def __init__(
-        self,
-        project_member_repository: ProjectMemberRepository,
-        user_repository: UserRepository,
-        project_repository: ProjectRepository,
+        self, project_member_repository: ProjectMemberRepository, user_repository: UserRepository
     ):
         self._members = project_member_repository
         self._users = user_repository
-        self._projects = project_repository
 
-    def add_member_by_email(self, project_id: uuid.UUID, email: str) -> ProjectMemberInfo:
-        project = self._projects.get_by_id(project_id)
-        if project is None:
-            raise ProjectMemberNotFoundError(f"Project {project_id} not found")
-
-        user = self._users.get_by_email(email)
-        if user is None:
-            raise UserNotFoundError(f"No registered user with email {email}")
-
-        if self._members.exists(project_id, user.id):
-            raise AlreadyAMemberError(f"{email} is already a member of this project")
+    def add_member(self, project_id: uuid.UUID, user_id: uuid.UUID) -> ProjectMemberInfo:
+        if self._members.exists(project_id, user_id):
+            raise AlreadyAMemberError("This user is already a member of the project")
 
         member = ProjectMember(
             id=uuid.uuid4(),
             project_id=project_id,
-            user_id=user.id,
+            user_id=user_id,
             added_at=datetime.now(UTC),
         )
         created = self._members.add(member)
+        user = self._users.get_by_id(user_id)
         return self._to_info(created, user)
 
     def list_members(self, project_id: uuid.UUID) -> list[ProjectMemberInfo]:
