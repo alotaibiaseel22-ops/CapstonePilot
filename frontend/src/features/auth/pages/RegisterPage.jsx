@@ -4,7 +4,6 @@ import { Cpu, Mail, Lock, User } from 'lucide-react'
 import { Card, CardContent } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
 import { Button } from '@/shared/components/ui/button'
-import { cn } from '@/shared/lib/utils'
 import { useAuth } from '@/app/providers/AuthProvider'
 
 function RegisterPage() {
@@ -12,11 +11,15 @@ function RegisterPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const cameFromInvite = Boolean(location.state?.from?.startsWith('/invite/'))
+  // No role picker in the UI: arriving via an invite link always means
+  // joining as a Collaborator; registering directly always means starting
+  // your own project as a Project Owner. You can still be invited as a
+  // Collaborator on other projects later regardless of this default.
+  const role = cameFromInvite ? 'collaborator' : 'project_owner'
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState(cameFromInvite ? 'collaborator' : 'project_owner')
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -85,40 +88,6 @@ function RegisterPage() {
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-
-              {!cameFromInvite && (
-                <div>
-                  <label className="mb-2 block text-xs font-semibold tracking-wide text-gray-500">
-                    I AM A
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRole('project_owner')}
-                      className={cn(
-                        'rounded-lg border px-3 py-2 text-sm font-medium',
-                        role === 'project_owner'
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-border text-gray-600 hover:bg-muted',
-                      )}
-                    >
-                      Project Owner
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRole('collaborator')}
-                      className={cn(
-                        'rounded-lg border px-3 py-2 text-sm font-medium',
-                        role === 'collaborator'
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-border text-gray-600 hover:bg-muted',
-                      )}
-                    >
-                      Collaborator
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {error && <p className="text-sm text-red-600">{error}</p>}
 
