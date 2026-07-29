@@ -18,7 +18,7 @@ class FileTooLargeError(Exception):
 
 @dataclass
 class ProposalAnalysisResult:
-    message: str
+    text: str
     characters_extracted: int
     preview: str
 
@@ -44,11 +44,11 @@ class ProposalAnalysisService:
     the original document, per the architecture's "ephemeral analysis input"
     design.
 
-    Text extraction here is real (PyMuPDF/python-docx). The actual plan/risk/
-    recommendation *generation* from that text is CrewAI's job (Iteration 10+)
-    and is intentionally stubbed for now - this service proves the upload/
-    validate/extract/discard pipeline works without pretending an LLM already
-    reasoned over the content.
+    Text extraction here is real (PyMuPDF/python-docx). The extracted `text` is
+    handed to the Planner orchestrator (see orchestrator_service.run_planning_job)
+    to actually generate a Plan/Milestones/Tasks from it - this service's own
+    job stops at upload/validate/extract/discard; it never persists the file
+    or the raw text itself, only what the orchestrator derives from it.
     """
 
     def analyze(self, filename: str, content: bytes) -> ProposalAnalysisResult:
@@ -62,7 +62,7 @@ class ProposalAnalysisService:
         text = _extract_text(filename, content)
 
         return ProposalAnalysisResult(
-            message="Project analyzed successfully — AI plan generated.",
+            text=text,
             characters_extracted=len(text),
             preview=text[:280].strip(),
         )

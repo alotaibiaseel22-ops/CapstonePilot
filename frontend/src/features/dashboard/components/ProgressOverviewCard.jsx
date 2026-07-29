@@ -1,4 +1,5 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/shared/components/ui/card'
+import { PreviewDataBanner } from '@/shared/components/common/PreviewDataBanner'
 import { ProgressOverviewChart } from './ProgressOverviewChart'
 
 function ProgressOverviewCard() {
@@ -14,7 +15,11 @@ function ProgressOverviewCard() {
           Completion %
         </span>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        <PreviewDataBanner>
+          Preview data — there's no historical progress tracking yet, only the current snapshot
+          shown elsewhere on this Dashboard.
+        </PreviewDataBanner>
         <ProgressOverviewChart />
       </CardContent>
     </Card>

@@ -38,6 +38,12 @@ class SqlAlchemyProjectMemberRepository(ProjectMemberRepository):
         )
         return [_to_entity(model) for model in query.all()]
 
+    def list_by_user(self, user_id: UUID) -> list[ProjectMember]:
+        query = self._session.query(ProjectMemberModel).filter(
+            ProjectMemberModel.user_id == user_id
+        )
+        return [_to_entity(model) for model in query.all()]
+
     def exists(self, project_id: UUID, user_id: UUID) -> bool:
         query = self._session.query(ProjectMemberModel).filter(
             ProjectMemberModel.project_id == project_id,

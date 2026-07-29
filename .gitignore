@@ -26,6 +26,9 @@ build/
 # Local dev DB
 backend/*.db
 
+# Plan generation cache (disk-backed, regenerable)
+backend/.cache/
+
 # Playwright
 frontend/test-results/
 frontend/playwright-report/

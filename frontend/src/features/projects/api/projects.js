@@ -33,10 +33,10 @@ async function removeProjectMember(projectId, userId) {
   await apiClient.delete(`/projects/${projectId}/members/${userId}`)
 }
 
-async function analyzeProposal(projectId, file) {
+async function generatePlan(projectId, file) {
   const formData = new FormData()
   formData.append('file', file)
-  const { data } = await apiClient.post(`/projects/${projectId}/analyze-proposal`, formData, {
+  const { data } = await apiClient.post(`/projects/${projectId}/plan/generate`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return data
@@ -50,5 +50,5 @@ export {
   deleteProject,
   getProjectMembers,
   removeProjectMember,
-  analyzeProposal,
+  generatePlan,
 }

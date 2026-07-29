@@ -1,7 +1,9 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from app.api.v1.deps import get_session_factory
 from app.infrastructure.db.models import InvitationModel
+from app.main import app
 
 
 def register(client, email, role="collaborator"):
@@ -257,6 +259,41 @@ def test_only_the_owning_project_owner_can_update_or_delete(client):
     assert delete_resp.status_code == 403
 
 
+def test_list_projects_only_returns_projects_you_own_or_belong_to(client):
+    owner = register(client, "listowner@example.com", role="project_owner")
+    member = register(client, "listmember@example.com", role="collaborator")
+    stranger = register(client, "liststranger@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    member_headers = auth_headers(member["access_token"])
+    stranger_headers = auth_headers(stranger["access_token"])
+
+    owned_project = client.post(
+        "/api/v1/projects", json={"name": "Owner's Project", "description": ""}, headers=headers
+    ).json()
+    # A second project owned by the same "stranger" role user, unrelated to
+    # the other two - proves list_projects doesn't just return everything.
+    client.post(
+        "/api/v1/projects", json={"name": "Stranger's Project", "description": ""},
+        headers=stranger_headers,
+    )
+
+    invite = client.post(
+        f"/api/v1/projects/{owned_project['id']}/invitations",
+        json={"emails": ["listmember@example.com"]},
+        headers=headers,
+    ).json()[0]
+    client.post(f"/api/v1/invitations/{invite['token']}/accept", headers=member_headers)
+
+    owner_list = client.get("/api/v1/projects", headers=headers).json()
+    assert [p["id"] for p in owner_list] == [owned_project["id"]]
+
+    member_list = client.get("/api/v1/projects", headers=member_headers).json()
+    assert [p["id"] for p in member_list] == [owned_project["id"]]
+
+    stranger_list = client.get("/api/v1/projects", headers=stranger_headers).json()
+    assert owned_project["id"] not in [p["id"] for p in stranger_list]
+
+
 def test_invite_by_email_for_unregistered_address_stays_pending(client):
     owner = register(client, "owner7@example.com", role="project_owner")
     headers = auth_headers(owner["access_token"])
@@ -375,7 +412,8 @@ def test_link_invitation_is_reusable_by_multiple_people(client):
     assert second_link_resp.json()["token"] == token
 
 
-def test_analyze_proposal_extracts_text_and_does_not_persist_file(client):
+def test_plan_generate_accepts_a_proposal_and_returns_a_job_id(client):
+    app.dependency_overrides[get_session_factory] = lambda: client.session_factory
     owner = register(client, "ownerA@example.com", role="project_owner")
     headers = auth_headers(owner["access_token"])
     project = client.post(
@@ -383,18 +421,15 @@ def test_analyze_proposal_extracts_text_and_does_not_persist_file(client):
     ).json()
 
     response = client.post(
-        f"/api/v1/projects/{project['id']}/analyze-proposal",
+        f"/api/v1/projects/{project['id']}/plan/generate",
         files={"file": ("proposal.txt", b"Build a traffic prediction system.", "text/plain")},
         headers=headers,
     )
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["message"] == "Project analyzed successfully — AI plan generated."
-    assert body["characters_extracted"] == len("Build a traffic prediction system.")
-    assert "traffic prediction" in body["preview"]
+    assert response.status_code == 202, response.text
+    assert "job_id" in response.json()
 
 
-def test_analyze_proposal_rejects_unsupported_type(client):
+def test_plan_generate_rejects_unsupported_type(client):
     owner = register(client, "ownerB@example.com", role="project_owner")
     headers = auth_headers(owner["access_token"])
     project = client.post(
@@ -402,14 +437,14 @@ def test_analyze_proposal_rejects_unsupported_type(client):
     ).json()
 
     response = client.post(
-        f"/api/v1/projects/{project['id']}/analyze-proposal",
+        f"/api/v1/projects/{project['id']}/plan/generate",
         files={"file": ("virus.exe", b"nope", "application/octet-stream")},
         headers=headers,
     )
     assert response.status_code == 422
 
 
-def test_analyze_proposal_rejects_oversized_file(client):
+def test_plan_generate_rejects_oversized_file(client):
     owner = register(client, "ownerC@example.com", role="project_owner")
     headers = auth_headers(owner["access_token"])
     project = client.post(
@@ -418,19 +453,19 @@ def test_analyze_proposal_rejects_oversized_file(client):
 
     oversized_content = b"0" * (20 * 1024 * 1024 + 1)
     response = client.post(
-        f"/api/v1/projects/{project['id']}/analyze-proposal",
+        f"/api/v1/projects/{project['id']}/plan/generate",
         files={"file": ("big.txt", oversized_content, "text/plain")},
         headers=headers,
     )
     assert response.status_code == 422
 
 
-def test_analyze_proposal_for_nonexistent_project_returns_404(client):
+def test_plan_generate_for_nonexistent_project_returns_404(client):
     owner = register(client, "ownerD@example.com", role="project_owner")
     headers = auth_headers(owner["access_token"])
 
     response = client.post(
-        "/api/v1/projects/00000000-0000-0000-0000-000000000000/analyze-proposal",
+        "/api/v1/projects/00000000-0000-0000-0000-000000000000/plan/generate",
         files={"file": ("proposal.txt", b"hello", "text/plain")},
         headers=headers,
     )
@@ -520,6 +555,7 @@ def test_preview_invitation_reports_project_and_account_status(client):
     assert known_preview.status_code == 200
     assert known_preview.json() == {
         "project_name": "Preview Project",
+        "inviter_name": "Test User",
         "email": "known14@example.com",
         "user_exists": True,
         "is_valid": True,
@@ -561,6 +597,95 @@ def test_expired_email_invitation_cannot_be_accepted(client):
         f"/api/v1/invitations/{invite['token']}/accept", headers=collaborator_headers
     )
     assert response.status_code == 410
+
+
+def test_onboarding_via_invitation_creates_a_participant_and_returns_a_session(client):
+    owner = register(client, "owner17@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Onboard Project", "description": ""}, headers=headers
+    ).json()
+    invite = client.post(
+        f"/api/v1/projects/{project['id']}/invitations",
+        json={"emails": ["newcomer17@example.com"]},
+        headers=headers,
+    ).json()[0]
+
+    response = client.post(
+        f"/api/v1/invitations/{invite['token']}/onboard", json={"name": "Newcomer Nadia"}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["project_id"] == project["id"]
+    assert body["user"]["name"] == "Newcomer Nadia"
+    assert body["user"]["email"] == "newcomer17@example.com"
+    assert body["user"]["role"] == "collaborator"
+
+    # The returned token really is a usable session - not just a shaped response.
+    me = client.get("/api/v1/users/me", headers=auth_headers(body["access_token"]))
+    assert me.status_code == 200
+    assert me.json()["email"] == "newcomer17@example.com"
+
+    members = client.get(f"/api/v1/projects/{project['id']}/members", headers=headers).json()
+    assert any(m["email"] == "newcomer17@example.com" for m in members)
+
+
+def test_onboarding_is_rejected_when_the_email_already_has_an_account(client):
+    owner = register(client, "owner18@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    register(client, "existing18@example.com", role="collaborator")
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+    invite = client.post(
+        f"/api/v1/projects/{project['id']}/invitations",
+        json={"emails": ["existing18@example.com"]},
+        headers=headers,
+    ).json()[0]
+
+    response = client.post(
+        f"/api/v1/invitations/{invite['token']}/onboard", json={"name": "Someone"}
+    )
+    assert response.status_code == 409
+
+
+def test_onboarding_is_rejected_for_a_shareable_link_invitation(client):
+    owner = register(client, "owner19@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+    link_invite = client.post(
+        f"/api/v1/projects/{project['id']}/invitations/link", headers=headers
+    ).json()
+
+    response = client.post(
+        f"/api/v1/invitations/{link_invite['token']}/onboard", json={"name": "Someone"}
+    )
+    assert response.status_code == 400
+
+
+def test_onboarding_twice_with_the_same_token_is_rejected(client):
+    owner = register(client, "owner20@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Test Project", "description": ""}, headers=headers
+    ).json()
+    invite = client.post(
+        f"/api/v1/projects/{project['id']}/invitations",
+        json={"emails": ["newcomer20@example.com"]},
+        headers=headers,
+    ).json()[0]
+
+    first = client.post(
+        f"/api/v1/invitations/{invite['token']}/onboard", json={"name": "First Try"}
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        f"/api/v1/invitations/{invite['token']}/onboard", json={"name": "Second Try"}
+    )
+    assert second.status_code == 409
 
 
 def test_owner_cannot_be_removed_and_removal_requires_ownership(client):

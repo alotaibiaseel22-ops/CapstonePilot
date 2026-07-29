@@ -1,49 +1,96 @@
+import { useState } from 'react'
 import { TrendingUp, CircleCheck, TriangleAlert, Lightbulb } from 'lucide-react'
 import { StatCard } from '@/shared/components/common/StatCard'
-import { PreviewDataBanner } from '@/shared/components/common/PreviewDataBanner'
+import { LoadingState } from '@/shared/components/common/LoadingState'
+import { ErrorState } from '@/shared/components/common/ErrorState'
+import { ProjectFilterDropdown } from '../components/ProjectFilterDropdown'
 import { ProjectHealthCard } from '../components/ProjectHealthCard'
 import { ProgressOverviewCard } from '../components/ProgressOverviewCard'
 import { ActivityFeed } from '../components/ActivityFeed'
 import { RecommendationsPreview } from '../components/RecommendationsPreview'
 import { MilestonesPreview } from '../components/MilestonesPreview'
+import { useDashboardData } from '../hooks/useDashboardData'
 
 function DashboardPage() {
+  const [selectedProjectId, setSelectedProjectId] = useState(null)
+  const dashboard = useDashboardData(selectedProjectId)
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-1 text-muted-foreground">
-          CapstonePilot is actively monitoring your projects &middot; Wednesday, July 9, 2026
-        </p>
-      </div>
-
-      <PreviewDataBanner>
-        This dashboard is still showing preview data. It aggregates across all of your projects and
-        depends on AI-generated risk/recommendation data, both of which connect once CrewAI
-        orchestration ships in Iteration 10+.
-      </PreviewDataBanner>
-
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={TrendingUp} tone="blue" value="72%" label="Project Progress" delta="+8% this week" />
-        <StatCard icon={CircleCheck} tone="green" value="35" label="Completed Tasks" delta="4 completed today" />
-        <StatCard icon={TriangleAlert} tone="amber" value="6" label="Detected Risks" delta="2 new this week" deltaTone="amber" />
-        <StatCard icon={Lightbulb} tone="purple" value="9" label="AI Recommendations" delta="3 pending review" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-1">
-          <ProjectHealthCard />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-1 text-muted-foreground">
+            CapstonePilot automatically monitors your projects for risks and recommendations.
+          </p>
         </div>
-        <div className="xl:col-span-2">
-          <ProgressOverviewCard />
-        </div>
+        <ProjectFilterDropdown
+          projects={dashboard.projects.length ? dashboard.projects : []}
+          selectedProjectId={selectedProjectId}
+          onChange={setSelectedProjectId}
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <ActivityFeed />
-        <RecommendationsPreview />
-        <MilestonesPreview />
-      </div>
+      {dashboard.isLoading ? (
+        <LoadingState label="Loading dashboard..." />
+      ) : dashboard.isError ? (
+        <ErrorState message="Couldn't load dashboard data. Please try again." />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              icon={TrendingUp}
+              tone="blue"
+              value={`${dashboard.progressPercent}%`}
+              label="Project Progress"
+            />
+            <StatCard
+              icon={CircleCheck}
+              tone="green"
+              value={dashboard.doneTasks}
+              label="Completed Tasks"
+            />
+            <StatCard
+              icon={TriangleAlert}
+              tone="amber"
+              value={dashboard.risks.length}
+              label="Detected Risks"
+              delta={
+                dashboard.risksBySeverity.high > 0
+                  ? `${dashboard.risksBySeverity.high} high severity`
+                  : undefined
+              }
+              deltaTone="amber"
+            />
+            <StatCard
+              icon={Lightbulb}
+              tone="purple"
+              value={dashboard.recommendations.length}
+              label="AI Recommendations"
+              delta={
+                dashboard.pendingRecommendations.length > 0
+                  ? `${dashboard.pendingRecommendations.length} pending review`
+                  : undefined
+              }
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <div className="xl:col-span-1">
+              <ProjectHealthCard {...dashboard.health} />
+            </div>
+            <div className="xl:col-span-2">
+              <ProgressOverviewCard />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <ActivityFeed />
+            <RecommendationsPreview recommendations={dashboard.pendingRecommendations} />
+            <MilestonesPreview milestones={dashboard.upcomingMilestones} />
+          </div>
+        </>
+      )}
     </div>
   )
 }

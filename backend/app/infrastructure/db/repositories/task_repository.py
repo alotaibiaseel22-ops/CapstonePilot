@@ -19,6 +19,7 @@ def _to_entity(model: TaskModel) -> Task:
         assignee_id=model.assignee_id,
         due_date=model.due_date,
         created_at=model.created_at,
+        updated_at=model.updated_at,
     )
 
 
@@ -45,6 +46,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
             assignee_id=task.assignee_id,
             due_date=task.due_date,
             created_at=task.created_at,
+            updated_at=task.updated_at,
         )
         self._session.add(model)
         self._session.commit()

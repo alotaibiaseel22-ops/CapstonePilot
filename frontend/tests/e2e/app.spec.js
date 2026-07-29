@@ -11,6 +11,17 @@ const cardDeleteProjectName = `Playwright Card Delete Project ${run}`
 
 let shareableLink = ''
 
+// Every new project requires a schedule before it's usable - fills the
+// blocking dialog (Start Date is pre-filled with today) that now appears
+// right after "Generate AI Project Plan", before the "was created"
+// confirmation becomes reachable.
+async function fillProjectSchedule(page) {
+  await expect(page.getByRole('heading', { name: 'Set the Project Schedule' })).toBeVisible()
+  const deadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  await page.locator('input[type="date"]').last().fill(deadline)
+  await page.getByRole('button', { name: 'Save Schedule' }).click()
+}
+
 test.describe.serial('CapstonePilot end-to-end', () => {
   let page
 
@@ -38,6 +49,7 @@ test.describe.serial('CapstonePilot end-to-end', () => {
       .getByPlaceholder('What is this project about?')
       .fill('A project created by an automated Playwright test.')
     await page.getByRole('button', { name: 'Generate AI Project Plan' }).click()
+    await fillProjectSchedule(page)
     await expect(page.getByText(`"${shareProjectName}" was created`)).toBeVisible()
 
     await page.getByRole('link', { name: 'Go to Project' }).click()
@@ -148,7 +160,15 @@ test.describe.serial('CapstonePilot end-to-end', () => {
     await ownerRow.getByLabel('Owner actions').click()
     await page.getByRole('menuitem', { name: 'View Profile' }).click()
 
-    await expect(page.getByText('Profile view is coming soon.')).toBeVisible()
+    const profileDialog = page.getByRole('dialog', { name: 'Profile' })
+    await expect(profileDialog.getByText(ownerName)).toBeVisible()
+    await expect(profileDialog.getByText(ownerEmail)).toBeVisible()
+    await expect(profileDialog.getByText('Owner', { exact: true })).toBeVisible()
+    // Close via the dialog's own X, not Escape - the underlying Share
+    // dialog is still open too and also listens for Escape, which would
+    // close both at once and break the next test's use of it.
+    await profileDialog.getByLabel('Close').click()
+    await expect(profileDialog).toHaveCount(0)
   })
 
   test('re-inviting an existing collaborator shows an error toast', async () => {
@@ -180,10 +200,18 @@ test.describe.serial('CapstonePilot end-to-end', () => {
     await page.keyboard.press('Escape')
   })
 
-  test('archive is a working placeholder that shows a toast', async () => {
+  test('archiving a project sets its status and can be undone', async () => {
+    // Asserting on the banner/badge state, not the "Project updated" toast -
+    // two of the same toast stacking (archive, then unarchive) makes that
+    // text ambiguous/flaky to assert on twice in one test.
     await page.getByRole('button', { name: 'Project actions' }).click()
     await page.getByRole('menuitem', { name: 'Archive Project' }).click()
-    await expect(page.getByText('Archiving is coming soon.')).toBeVisible()
+    await expect(page.getByText('This project is archived.')).toBeVisible()
+    await expect(page.getByText('Archived', { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Project actions' }).click()
+    await page.getByRole('menuitem', { name: 'Unarchive Project' }).click()
+    await expect(page.getByText('This project is archived.')).toHaveCount(0)
   })
 
   test('deletes the project from the detail page and redirects to the list', async () => {
@@ -200,6 +228,7 @@ test.describe.serial('CapstonePilot end-to-end', () => {
     await page.goto('/projects/new')
     await page.getByPlaceholder('ML-Based Traffic Optimization').fill(cardDeleteProjectName)
     await page.getByRole('button', { name: 'Generate AI Project Plan' }).click()
+    await fillProjectSchedule(page)
     await expect(page.getByText(`"${cardDeleteProjectName}" was created`)).toBeVisible()
 
     await page.goto('/projects')
@@ -212,5 +241,50 @@ test.describe.serial('CapstonePilot end-to-end', () => {
 
     await expect(page.getByText('Project deleted')).toBeVisible()
     await expect(page.locator('[data-testid="project-card"]', { hasText: cardDeleteProjectName })).toHaveCount(0)
+  })
+
+  test('a new collaborator joins directly via an email invite with just their name', async ({ browser }) => {
+    const onboardProjectName = `Playwright Onboard Project ${run}`
+    const onboardEmail = `onboard-${run}@example.com`
+    const onboardName = 'E2E Onboarded'
+
+    await page.goto('/projects/new')
+    await page.getByPlaceholder('ML-Based Traffic Optimization').fill(onboardProjectName)
+    await page.getByRole('button', { name: 'Generate AI Project Plan' }).click()
+    await fillProjectSchedule(page)
+    await expect(page.getByText(`"${onboardProjectName}" was created`)).toBeVisible()
+    await page.getByRole('link', { name: 'Go to Project' }).click()
+
+    await page.getByRole('button', { name: 'Share' }).click()
+    const modal = page.getByRole('dialog', { name: 'Share Project' })
+    await page.getByPlaceholder('name@example.com').fill(onboardEmail)
+    await page.getByRole('button', { name: 'Invite', exact: true }).click()
+    await expect(page.getByText(`Invitation sent to ${onboardEmail}`)).toBeVisible()
+
+    const row = modal.locator('[data-testid="pending-invitation-row"]').filter({ hasText: onboardEmail })
+    await row.getByLabel(`Actions for ${onboardEmail}`).click()
+    await page.getByRole('menuitem', { name: 'Copy Invite Link' }).click()
+    await expect(page.getByText('Invite link copied')).toBeVisible()
+    const inviteLink = await page.evaluate(() => navigator.clipboard.readText())
+    expect(inviteLink).toContain('/invite/')
+    await page.keyboard.press('Escape')
+
+    // Fresh, unauthenticated context - never should touch Login or Register.
+    const onboardContext = await browser.newContext()
+    const onboardPage = await onboardContext.newPage()
+    await onboardPage.goto(inviteLink)
+
+    await expect(onboardPage.getByRole('heading', { name: `Join ${onboardProjectName}` })).toBeVisible()
+    await expect(onboardPage.getByText(`${ownerName} invited you`)).toBeVisible()
+    await expect(onboardPage.getByLabel('Email', { exact: false })).toHaveCount(0)
+    await expect(onboardPage.getByLabel('Password', { exact: false })).toHaveCount(0)
+
+    await onboardPage.getByPlaceholder('Jane Doe').fill(onboardName)
+    await onboardPage.getByRole('button', { name: 'Join Project' }).click()
+
+    await expect(onboardPage).toHaveURL(/\/projects\/[0-9a-f-]+$/)
+    await expect(onboardPage.getByRole('heading', { name: onboardProjectName })).toBeVisible()
+
+    await onboardContext.close()
   })
 })

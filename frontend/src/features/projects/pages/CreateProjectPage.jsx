@@ -1,28 +1,51 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, FolderPlus, FileText, Sparkles, CheckCircle2, ArrowRight, Users } from 'lucide-react'
+import { useMutation } from '@tanstack/react-query'
+import {
+  ArrowLeft,
+  FolderPlus,
+  FileText,
+  Sparkles,
+  CheckCircle2,
+  AlertTriangle,
+  ArrowRight,
+  Users,
+  Loader2,
+} from 'lucide-react'
 import { Card, CardContent } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
 import { Textarea } from '@/shared/components/ui/textarea'
 import { Button } from '@/shared/components/ui/button'
 import { FileUploadZone } from '../components/FileUploadZone'
 import { ShareModal } from '../components/ShareModal'
+import { ProjectScheduleDialog } from '../components/ProjectScheduleDialog'
 import { useCreateProject } from '../hooks/useProjects'
-import { useAnalyzeProposal } from '../hooks/useAnalyzeProposal'
+import { generatePlan } from '../api/projects'
+import { useJobStatus } from '@/features/planning/hooks/useJobStatus'
 
 function CreateProjectPage() {
   const createProject = useCreateProject()
-  const analyzeProposal = useAnalyzeProposal()
+  const generatePlanMutation = useMutation({
+    mutationFn: ({ projectId, file }) => generatePlan(projectId, file),
+  })
 
   const [project, setProject] = useState(null)
-  const [analysis, setAnalysis] = useState(null)
+  const [jobId, setJobId] = useState(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [file, setFile] = useState(null)
   const [error, setError] = useState(null)
   const [shareOpen, setShareOpen] = useState(false)
+  const [scheduleSaved, setScheduleSaved] = useState(false)
 
-  const generating = createProject.isPending || analyzeProposal.isPending
+  const { data: job } = useJobStatus(jobId)
+  const generating = createProject.isPending || generatePlanMutation.isPending
+  const planGenerating = Boolean(jobId) && job?.status !== 'succeeded' && job?.status !== 'failed'
+  const quotaExceeded = job?.status === 'failed' && job.error?.startsWith('QUOTA_EXCEEDED')
+  // Covers both onboarding triggers: right after plan generation settles,
+  // and immediately when no proposal was uploaded at all (jobId never got
+  // set, so there's no job to wait on).
+  const needsSchedule = Boolean(project) && !planGenerating && !scheduleSaved
 
   function handleFileSelected(fileList) {
     setFile(fileList[0] ?? null)
@@ -37,8 +60,13 @@ function CreateProjectPage() {
       setProject(created)
 
       if (file) {
-        const result = await analyzeProposal.mutateAsync({ projectId: created.id, file })
-        setAnalysis(result)
+        try {
+          const { job_id } = await generatePlanMutation.mutateAsync({ projectId: created.id, file })
+          setJobId(job_id)
+        } catch {
+          // Project creation already succeeded - plan generation failing shouldn't
+          // block the user from reaching their project, just skip the job state.
+        }
       }
     } catch {
       setError('Could not create the project. Please check the form and try again.')
@@ -58,13 +86,34 @@ function CreateProjectPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Create New Project</h1>
         <p className="mt-1 text-muted-foreground">
-          {project
-            ? 'Your AI-powered project plan is ready.'
-            : 'CapstonePilot will generate a full AI-powered project plan after setup.'}
+          {planGenerating
+            ? 'Your AI Project Manager is building your plan...'
+            : needsSchedule
+              ? 'One more step before your project is ready.'
+              : project
+                ? 'Your project is ready.'
+                : 'CapstonePilot will generate a full AI-powered project plan after setup.'}
         </p>
       </div>
 
-      {!project ? (
+      {planGenerating ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+            <Loader2 className="size-8 animate-spin text-blue-600" />
+            <div>
+              <p className="font-semibold text-gray-900">
+                Your AI Project Manager is building your plan...
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Analyzing your specification and drafting milestones and tasks. This usually
+                takes under a minute.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : needsSchedule ? (
+        <ProjectScheduleDialog projectId={project.id} onSaved={() => setScheduleSaved(true)} />
+      ) : !project ? (
         <Card>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-6">
@@ -123,18 +172,28 @@ function CreateProjectPage() {
         <div className="space-y-6">
           <Card>
             <CardContent className="flex items-start gap-3">
-              <CheckCircle2 className="size-6 shrink-0 text-green-600" />
+              {job?.status === 'failed' || (file && !jobId) ? (
+                <AlertTriangle className="size-6 shrink-0 text-amber-600" />
+              ) : (
+                <CheckCircle2 className="size-6 shrink-0 text-green-600" />
+              )}
               <div>
                 <p className="font-semibold text-gray-900">"{project.name}" was created</p>
-                {analysis ? (
-                  <>
-                    <p className="text-sm text-muted-foreground">{analysis.message}</p>
-                    {analysis.preview && (
-                      <p className="mt-2 text-sm italic text-gray-500">
-                        &ldquo;{analysis.preview}&hellip;&rdquo;
-                      </p>
-                    )}
-                  </>
+                {job?.status === 'succeeded' ? (
+                  <p className="text-sm text-muted-foreground">
+                    Your AI Project Manager generated an initial plan from your specification.
+                    Review and approve it from the project's Plan page before it goes live.
+                  </p>
+                ) : quotaExceeded ? (
+                  <p className="text-sm text-amber-700">
+                    The Gemini API quota has been exceeded, so a plan couldn't be generated right
+                    now. Please try again later — the AI plan starts empty in the meantime.
+                  </p>
+                ) : job?.status === 'failed' || (file && !jobId) ? (
+                  <p className="text-sm text-muted-foreground">
+                    We couldn't generate a plan from your specification, so the AI plan starts
+                    empty — you can add milestones and tasks from the project's plan view.
+                  </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     No specification was uploaded, so the AI plan starts empty — you can add

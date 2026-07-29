@@ -3,13 +3,16 @@ import { useQueries } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { LoadingState } from '@/shared/components/common/LoadingState'
 import { ErrorState } from '@/shared/components/common/ErrorState'
+import { useAuth } from '@/app/providers/AuthProvider'
 import { useProject } from '@/features/projects/hooks/useProjects'
 import { getTasks } from '../api/milestones'
 import { useMilestones } from '../hooks/useMilestones'
 import { MilestoneAccordion } from '../components/MilestoneAccordion'
+import { PlanApprovalBanner } from '../components/PlanApprovalBanner'
 
 function ProgressPage() {
   const { id } = useParams()
+  const { user } = useAuth()
   const { data: project, isLoading: projectLoading, isError: projectError } = useProject(id)
   const { data: milestones, isLoading: milestonesLoading, isError: milestonesError } = useMilestones(id)
 
@@ -51,6 +54,8 @@ function ProgressPage() {
           Overall <span className="font-bold text-blue-600">{overallPercent}%</span>
         </span>
       </div>
+
+      <PlanApprovalBanner projectId={id} isOwner={user?.id === project.owner_id} />
 
       {milestones.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border py-16 text-center text-muted-foreground">

@@ -38,6 +38,8 @@ filelock==3.29.7
 flatbuffers==25.12.19
 frozenlist==1.8.0
 fsspec==2026.6.0
+google-auth==2.55.2
+google-genai==2.12.1
 google-re2==1.1.20251105
 googleapis-common-protos==1.75.0
 greenlet==3.5.3
@@ -103,6 +105,7 @@ protobuf==6.33.6
 psycopg2-binary==2.9.12
 pyarrow==25.0.0
 pyasn1==0.6.4
+pyasn1-modules==0.4.2
 pybase64==1.4.3
 pycparser==3.0
 pydantic==2.12.5

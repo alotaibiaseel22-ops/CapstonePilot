@@ -37,6 +37,16 @@ class SqlAlchemyPlanRepository(PlanRepository):
         self._session.refresh(model)
         return _to_entity(model)
 
+    def update(self, plan: Plan) -> Plan:
+        model = self._session.get(PlanModel, plan.id)
+        if model is None:
+            raise ValueError(f"Plan {plan.id} not found")
+        model.status = plan.status.value
+        model.rationale = plan.rationale
+        self._session.commit()
+        self._session.refresh(model)
+        return _to_entity(model)
+
     def get_by_id(self, plan_id: UUID) -> Plan | None:
         model = self._session.get(PlanModel, plan_id)
         return _to_entity(model) if model else None

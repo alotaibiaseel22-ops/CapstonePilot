@@ -17,6 +17,7 @@ def _to_entity(model: UserModel) -> User:
         password_hash=model.password_hash,
         preferred_language=Language(model.preferred_language),
         created_at=model.created_at,
+        notifications_last_seen_at=model.notifications_last_seen_at,
     )
 
 
@@ -41,6 +42,7 @@ class SqlAlchemyUserRepository(UserRepository):
             password_hash=user.password_hash,
             preferred_language=user.preferred_language.value,
             created_at=user.created_at,
+            notifications_last_seen_at=user.notifications_last_seen_at,
         )
         self._session.add(model)
         self._session.commit()
@@ -49,3 +51,15 @@ class SqlAlchemyUserRepository(UserRepository):
 
     def list_all(self) -> list[User]:
         return [_to_entity(model) for model in self._session.query(UserModel).all()]
+
+    def update(self, user: User) -> User:
+        model = self._session.get(UserModel, user.id)
+        if model is None:
+            raise ValueError(f"User {user.id} not found")
+        model.name = user.name
+        model.password_hash = user.password_hash
+        model.preferred_language = user.preferred_language.value
+        model.notifications_last_seen_at = user.notifications_last_seen_at
+        self._session.commit()
+        self._session.refresh(model)
+        return _to_entity(model)

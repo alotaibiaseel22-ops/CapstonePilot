@@ -5,15 +5,17 @@ from app.domain.entities import Plan
 
 
 class PlanRepository(ABC):
-    """Minimal port: full Plan CRUD/versioning ships with the orchestrator (Iterations 10-13).
-
-    For now this only supports what ProjectService needs internally to give every
-    new project a Plan row for Milestones to attach to, per the ERD in the
-    architecture doc (Project -> Plan -> Milestone -> Task).
+    """Covers project-creation's empty draft Plan (ProjectService) and the
+    Planner's draft->proposed->approved/draft transitions (PlanService, Iteration 10).
+    Multi-version replanning (superseding an approved plan with a new draft)
+    is still deferred to the Risk/Recommendation iterations.
     """
 
     @abstractmethod
     def create(self, plan: Plan) -> Plan: ...
+
+    @abstractmethod
+    def update(self, plan: Plan) -> Plan: ...
 
     @abstractmethod
     def get_by_id(self, plan_id: UUID) -> Plan | None: ...

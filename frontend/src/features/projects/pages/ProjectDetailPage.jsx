@@ -6,13 +6,14 @@ import {
   CalendarClock,
   ClipboardList,
   Flag,
+  Lightbulb,
   MoreVertical,
   Pencil,
   Share2,
+  ShieldAlert,
   Trash2,
   Users,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import { StatCard } from '@/shared/components/common/StatCard'
 import { LoadingState } from '@/shared/components/common/LoadingState'
 import { ErrorState } from '@/shared/components/common/ErrorState'
@@ -22,13 +23,13 @@ import { Button } from '@/shared/components/ui/button'
 import { DropdownMenu, DropdownMenuItem } from '@/shared/components/ui/dropdown-menu'
 import { ConfirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { useAuth } from '@/app/providers/AuthProvider'
-import { useProject, useDeleteProject } from '../hooks/useProjects'
+import { useProject, useDeleteProject, useUpdateProject } from '../hooks/useProjects'
 import { useProjectMembers } from '../hooks/useProjectMembers'
 import { useMilestones } from '@/features/planning/hooks/useMilestones'
 import { ShareModal } from '../components/ShareModal'
 
-const statusTone = { planning: 'default', active: 'info', completed: 'success' }
-const statusLabel = { planning: 'Planning', active: 'Active', completed: 'Completed' }
+const statusTone = { planning: 'default', active: 'info', completed: 'success', archived: 'default' }
+const statusLabel = { planning: 'Planning', active: 'Active', completed: 'Completed', archived: 'Archived' }
 
 function ProjectDetailPage() {
   const { id } = useParams()
@@ -38,6 +39,7 @@ function ProjectDetailPage() {
   const { data: members } = useProjectMembers(id)
   const { data: milestones } = useMilestones(id)
   const deleteProject = useDeleteProject()
+  const updateProject = useUpdateProject(id)
 
   const [shareOpen, setShareOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -63,9 +65,15 @@ function ProjectDetailPage() {
     : null
   const isOwner = user?.id === project.owner_id
 
+  const isArchived = project.status === 'archived'
+
   async function handleDelete() {
     await deleteProject.mutateAsync(id)
     navigate('/projects', { replace: true })
+  }
+
+  function handleToggleArchive() {
+    updateProject.mutate({ status: isArchived ? 'active' : 'archived' })
   }
 
   return (
@@ -87,6 +95,13 @@ function ProjectDetailPage() {
           <span className="font-medium text-gray-700">{project.name}</span>
         </nav>
       </div>
+
+      {isArchived && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          This project is archived. CapstonePilot has paused automatic risk monitoring for it -
+          unarchive it to resume.
+        </div>
+      )}
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -121,11 +136,8 @@ function ProjectDetailPage() {
               <DropdownMenuItem icon={Pencil} onClick={() => navigate(`/projects/${id}/settings`)}>
                 Edit Project
               </DropdownMenuItem>
-              <DropdownMenuItem
-                icon={Archive}
-                onClick={() => toast.info('Archiving is coming soon.')}
-              >
-                Archive Project
+              <DropdownMenuItem icon={Archive} onClick={handleToggleArchive}>
+                {isArchived ? 'Unarchive Project' : 'Archive Project'}
               </DropdownMenuItem>
               <DropdownMenuItem icon={Trash2} destructive onClick={() => setConfirmingDelete(true)}>
                 Delete Project
@@ -141,13 +153,25 @@ function ProjectDetailPage() {
         <StatCard
           icon={CalendarClock}
           tone="amber"
-          value={daysRemaining !== null ? Math.max(daysRemaining, 0) : '—'}
+          value={daysRemaining !== null ? Math.max(daysRemaining, 0) : 'Deadline not set'}
           label="Days Remaining"
         />
         <Link to={`/projects/${id}/progress`} className="block">
           <Card className="flex h-full items-center justify-center gap-2 text-blue-600 transition-shadow hover:shadow-md">
             <ClipboardList className="size-5" />
             <span className="font-semibold">View Plan</span>
+          </Card>
+        </Link>
+        <Link to={`/projects/${id}/risks`} className="block">
+          <Card className="flex h-full items-center justify-center gap-2 text-blue-600 transition-shadow hover:shadow-md">
+            <ShieldAlert className="size-5" />
+            <span className="font-semibold">View Risks</span>
+          </Card>
+        </Link>
+        <Link to={`/projects/${id}/recommendations`} className="block">
+          <Card className="flex h-full items-center justify-center gap-2 text-blue-600 transition-shadow hover:shadow-md">
+            <Lightbulb className="size-5" />
+            <span className="font-semibold">View Recommendations</span>
           </Card>
         </Link>
       </div>

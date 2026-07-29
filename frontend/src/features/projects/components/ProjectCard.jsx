@@ -8,8 +8,8 @@ import { ConfirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { useAuth } from '@/app/providers/AuthProvider'
 import { useDeleteProject } from '../hooks/useProjects'
 
-const statusTone = { planning: 'default', active: 'info', completed: 'success' }
-const statusLabel = { planning: 'Planning', active: 'Active', completed: 'Completed' }
+const statusTone = { planning: 'default', active: 'info', completed: 'success', archived: 'default' }
+const statusLabel = { planning: 'Planning', active: 'Active', completed: 'Completed', archived: 'Archived' }
 
 function formatDate(value) {
   if (!value) return null
@@ -73,14 +73,12 @@ function ProjectCard({ project }) {
             {project.description || 'No description provided.'}
           </p>
 
-          {project.due_date && (
-            <div className="mt-4 flex items-center justify-end">
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Calendar className="size-3.5" />
-                Due {formatDate(project.due_date)}
-              </span>
-            </div>
-          )}
+          <div className="mt-4 flex items-center justify-end">
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Calendar className="size-3.5" />
+              {project.due_date ? `Due ${formatDate(project.due_date)}` : 'Deadline not set'}
+            </span>
+          </div>
         </CardContent>
       </Link>
 

@@ -44,6 +44,11 @@ async function getInvitationPreview(token) {
   return data
 }
 
+async function onboardViaInvitation(token, name) {
+  const { data } = await apiClient.post(`/invitations/${token}/onboard`, { name })
+  return data
+}
+
 export {
   inviteByEmail,
   getOrCreateLinkInvitation,
@@ -54,4 +59,5 @@ export {
   getMyInvitations,
   acceptInvitation,
   getInvitationPreview,
+  onboardViaInvitation,
 }

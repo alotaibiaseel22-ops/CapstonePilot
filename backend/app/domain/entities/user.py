@@ -14,3 +14,4 @@ class User:
     password_hash: str
     preferred_language: Language
     created_at: datetime
+    notifications_last_seen_at: datetime | None

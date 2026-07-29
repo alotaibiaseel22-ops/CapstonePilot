@@ -16,6 +16,9 @@ from app.application.services.milestone_service import MilestoneService  # noqa:
 from app.application.services.project_service import ProjectService  # noqa: E402
 from app.application.services.task_service import TaskService  # noqa: E402
 from app.domain.enums import TaskPriority, UserRole  # noqa: E402
+from app.infrastructure.db.repositories.activity_event_repository import (  # noqa: E402
+    SqlAlchemyActivityEventRepository,
+)
 from app.infrastructure.db.repositories.invitation_repository import (  # noqa: E402
     SqlAlchemyInvitationRepository,
 )
@@ -30,6 +33,12 @@ from app.infrastructure.db.repositories.project_member_repository import (  # no
 )
 from app.infrastructure.db.repositories.project_repository import (  # noqa: E402
     SqlAlchemyProjectRepository,
+)
+from app.infrastructure.db.repositories.recommendation_repository import (  # noqa: E402
+    SqlAlchemyRecommendationRepository,
+)
+from app.infrastructure.db.repositories.risk_report_repository import (  # noqa: E402
+    SqlAlchemyRiskReportRepository,
 )
 from app.infrastructure.db.repositories.task_repository import (
     SqlAlchemyTaskRepository,  # noqa: E402
@@ -105,6 +114,9 @@ def main() -> None:
             SqlAlchemyInvitationRepository(db),
             SqlAlchemyMilestoneRepository(db),
             SqlAlchemyTaskRepository(db),
+            SqlAlchemyRiskReportRepository(db),
+            SqlAlchemyRecommendationRepository(db),
+            SqlAlchemyActivityEventRepository(db),
         )
         invitation_service = InvitationService(
             SqlAlchemyInvitationRepository(db),

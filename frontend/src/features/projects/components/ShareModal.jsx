@@ -16,6 +16,7 @@ import {
 } from '@/features/invitations/hooks/useInvitations'
 import { InviteByEmailForm } from '@/features/invitations/components/InviteByEmailForm'
 import { InviteLinkSection } from '@/features/invitations/components/InviteLinkSection'
+import { ProfileModal } from './ProfileModal'
 
 function initialsOf(text) {
   return text
@@ -94,6 +95,7 @@ function ShareModal({ open, onClose, project }) {
 
   const [removingMember, setRemovingMember] = useState(null)
   const [cancellingInvitation, setCancellingInvitation] = useState(null)
+  const [viewingProfile, setViewingProfile] = useState(null)
 
   const linkInvitation = (invitations ?? []).find(
     (invitation) => !invitation.email && invitation.status === 'pending',
@@ -174,7 +176,14 @@ function ShareModal({ open, onClose, project }) {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       icon={User}
-                      onClick={() => toast.info('Profile view is coming soon.')}
+                      onClick={() =>
+                        setViewingProfile({
+                          name: project.owner_name,
+                          email: project.owner_email,
+                          badge: 'Owner',
+                          badgeVariant: 'purple',
+                        })
+                      }
                     >
                       View Profile
                     </DropdownMenuItem>
@@ -212,7 +221,15 @@ function ShareModal({ open, onClose, project }) {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           icon={User}
-                          onClick={() => toast.info('Profile view is coming soon.')}
+                          onClick={() =>
+                            setViewingProfile({
+                              name: member.name,
+                              email: member.email,
+                              badge: 'Member',
+                              badgeVariant: 'success',
+                              joinedAt: member.added_at,
+                            })
+                          }
                         >
                           View Profile
                         </DropdownMenuItem>
@@ -312,6 +329,8 @@ function ShareModal({ open, onClose, project }) {
         destructive
         isConfirming={revokeInvitation.isPending}
       />
+
+      <ProfileModal profile={viewingProfile} onClose={() => setViewingProfile(null)} />
     </>
   )
 }

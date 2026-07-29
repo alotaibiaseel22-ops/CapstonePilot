@@ -17,3 +17,6 @@ class UserModel(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     preferred_language: Mapped[str] = mapped_column(String(8), default="en")
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+    notifications_last_seen_at: Mapped[datetime | None] = mapped_column(
+        default=lambda: datetime.now(UTC), nullable=True
+    )

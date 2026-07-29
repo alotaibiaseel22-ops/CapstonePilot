@@ -26,6 +26,15 @@ test('no console errors or warnings during a full project + share flow', async (
   await page.goto('/projects/new')
   await page.getByPlaceholder('ML-Based Traffic Optimization').fill(projectName)
   await page.getByRole('button', { name: 'Generate AI Project Plan' }).click()
+
+  // Every new project requires a schedule before it's usable - fill the
+  // blocking dialog (Start Date is pre-filled with today) before the
+  // "was created" confirmation becomes reachable.
+  await expect(page.getByRole('heading', { name: 'Set the Project Schedule' })).toBeVisible()
+  const deadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  await page.locator('input[type="date"]').last().fill(deadline)
+  await page.getByRole('button', { name: 'Save Schedule' }).click()
+
   await expect(page.getByText(`"${projectName}" was created`)).toBeVisible()
   await page.getByRole('link', { name: 'Go to Project' }).click()
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/)

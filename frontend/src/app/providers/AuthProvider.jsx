@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { login as loginRequest, register as registerRequest, getCurrentUser } from '@/features/auth/api/auth'
+import { onboardViaInvitation } from '@/features/invitations/api/invitations'
 
 const TOKEN_KEY = 'capstonepilot_token'
 
@@ -40,14 +41,28 @@ function AuthProvider({ children }) {
     setStatus('authenticated')
   }
 
+  async function onboard(token, name) {
+    const data = await onboardViaInvitation(token, name)
+    localStorage.setItem(TOKEN_KEY, data.access_token)
+    setUser(data.user)
+    setStatus('authenticated')
+    return data
+  }
+
   function logout() {
     localStorage.removeItem(TOKEN_KEY)
     setUser(null)
     setStatus('unauthenticated')
   }
 
+  async function refreshUser() {
+    const currentUser = await getCurrentUser()
+    setUser(currentUser)
+    return currentUser
+  }
+
   return (
-    <AuthContext.Provider value={{ user, status, login, register, logout }}>
+    <AuthContext.Provider value={{ user, status, login, register, onboard, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

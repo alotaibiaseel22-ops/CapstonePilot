@@ -23,6 +23,7 @@ class TaskService:
         assignee_id: uuid.UUID | None = None,
         due_date: date | None = None,
     ) -> Task:
+        now = datetime.now(UTC)
         task = Task(
             id=uuid.uuid4(),
             milestone_id=milestone_id,
@@ -32,7 +33,8 @@ class TaskService:
             priority=priority,
             assignee_id=assignee_id,
             due_date=due_date,
-            created_at=datetime.now(UTC),
+            created_at=now,
+            updated_at=now,
         )
         return self._tasks.create(task)
 

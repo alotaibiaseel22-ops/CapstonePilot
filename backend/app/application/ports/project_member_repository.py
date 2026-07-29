@@ -12,6 +12,9 @@ class ProjectMemberRepository(ABC):
     def list_by_project(self, project_id: UUID) -> list[ProjectMember]: ...
 
     @abstractmethod
+    def list_by_user(self, user_id: UUID) -> list[ProjectMember]: ...
+
+    @abstractmethod
     def exists(self, project_id: UUID, user_id: UUID) -> bool: ...
 
     @abstractmethod

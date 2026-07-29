@@ -7,9 +7,10 @@ function AnalysisBanner() {
         <Sparkles className="size-5" />
       </span>
       <div>
-        <p className="font-bold text-gray-900">CapstonePilot analyzed 847 data points across your project</p>
+        <p className="font-bold text-gray-900">AI-generated recommendations</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          These recommendations are ranked by predicted impact on project success probability.
+          CapstonePilot monitors this project automatically and generates these recommendations
+          whenever a risk is detected.
         </p>
       </div>
     </div>

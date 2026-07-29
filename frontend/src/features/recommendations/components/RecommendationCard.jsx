@@ -3,14 +3,30 @@ import { Bot, ChevronDown, ChevronRight, Check, X } from 'lucide-react'
 import { Card, CardContent } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
+import { useApproveRecommendation, useRejectRecommendation } from '../hooks/useRecommendations'
 
-const severityTone = { Critical: 'destructive', High: 'warning' }
-const effortTone = { Low: 'text-green-600', Medium: 'text-amber-600', High: 'text-red-600' }
-const impactTone = { Low: 'text-green-600', Medium: 'text-amber-600', High: 'text-red-600' }
+const severityTone = { high: 'destructive', medium: 'warning', low: 'default' }
+const severityLabel = { high: 'High', medium: 'Medium', low: 'Low' }
+const tierTone = { low: 'text-green-600', medium: 'text-amber-600', high: 'text-red-600' }
+const tierLabel = { low: 'Low', medium: 'Medium', high: 'High' }
 
-function RecommendationCard({ title, severity, category, effort, impact, description, rationale, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen)
-  const [decision, setDecision] = useState(null)
+function RecommendationCard({
+  id,
+  projectId,
+  title,
+  category,
+  severity,
+  effort,
+  impact,
+  description,
+  rationale,
+  status,
+}) {
+  const [open, setOpen] = useState(false)
+  const approve = useApproveRecommendation(projectId)
+  const reject = useRejectRecommendation(projectId)
+  const isPending = status === 'pending'
+  const isMutating = approve.isPending || reject.isPending
 
   return (
     <Card>
@@ -33,17 +49,17 @@ function RecommendationCard({ title, severity, category, effort, impact, descrip
           </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-            <Badge variant={severityTone[severity]}>{severity}</Badge>
+            <Badge variant={severityTone[severity]}>{severityLabel[severity] ?? severity}</Badge>
             <Badge>{category}</Badge>
             <span className="text-muted-foreground">
-              Effort: <span className={effortTone[effort]}>{effort}</span>
+              Effort: <span className={tierTone[effort]}>{tierLabel[effort] ?? effort}</span>
             </span>
             <span className="text-muted-foreground">
-              Impact: <span className={impactTone[impact]}>{impact}</span>
+              Impact: <span className={tierTone[impact]}>{tierLabel[impact] ?? impact}</span>
             </span>
           </div>
 
-          <p className="mt-3 text-sm text-gray-700">{description}</p>
+          {description && <p className="mt-3 text-sm text-gray-700">{description}</p>}
 
           {open && rationale && (
             <div className="mt-4 rounded-lg bg-gray-50 p-4">
@@ -53,26 +69,34 @@ function RecommendationCard({ title, severity, category, effort, impact, descrip
           )}
 
           <div className="mt-4 flex gap-3">
-            <Button
-              type="button"
-              variant="success"
-              size="sm"
-              onClick={() => setDecision('accepted')}
-              disabled={decision !== null}
-            >
-              <Check className="size-4" />
-              {decision === 'accepted' ? 'Accepted' : 'Accept'}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => setDecision('dismissed')}
-              disabled={decision !== null}
-            >
-              <X className="size-4" />
-              {decision === 'dismissed' ? 'Dismissed' : 'Dismiss'}
-            </Button>
+            {isPending ? (
+              <>
+                <Button
+                  type="button"
+                  variant="success"
+                  size="sm"
+                  onClick={() => approve.mutate(id)}
+                  disabled={isMutating}
+                >
+                  <Check className="size-4" />
+                  Accept
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => reject.mutate(id)}
+                  disabled={isMutating}
+                >
+                  <X className="size-4" />
+                  Dismiss
+                </Button>
+              </>
+            ) : (
+              <Badge variant={status === 'approved' ? 'success' : 'default'}>
+                {status === 'approved' ? 'Accepted' : 'Dismissed'}
+              </Badge>
+            )}
           </div>
         </div>
       </CardContent>

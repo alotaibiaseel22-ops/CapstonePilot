@@ -2,18 +2,30 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.api.schemas.auth import UserRead
 from app.api.schemas.invitation import (
     InvitationAcceptResult,
     InvitationEmailCreate,
+    InvitationOnboardRequest,
+    InvitationOnboardResponse,
     InvitationPreviewRead,
     InvitationRead,
 )
-from app.api.v1.deps import get_current_user, get_invitation_service, require_role
+from app.api.v1.deps import (
+    get_activity_service,
+    get_auth_service,
+    get_current_user,
+    get_invitation_service,
+    require_role,
+)
+from app.application.services.activity_service import ActivityService
+from app.application.services.auth_service import AuthService, EmailAlreadyRegisteredError
 from app.application.services.invitation_service import (
     AlreadyAMemberError,
     InvitationAlreadyAcceptedError,
     InvitationEmailMismatchError,
     InvitationExpiredError,
+    InvitationNotEmailBasedError,
     InvitationNotFoundError,
     InvitationNotResendableError,
     InvitationRevokedError,
@@ -23,6 +35,7 @@ from app.application.services.invitation_service import (
 )
 from app.domain.entities import User
 from app.domain.enums import UserRole
+from app.infrastructure.security.jwt import create_access_token
 
 router = APIRouter(tags=["invitations"])
 
@@ -118,6 +131,46 @@ def preview_invitation(
     return InvitationPreviewRead.model_validate(preview)
 
 
+@router.post("/invitations/{token}/onboard", response_model=InvitationOnboardResponse)
+def onboard_via_invitation(
+    token: str,
+    payload: InvitationOnboardRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    invitation_service: InvitationService = Depends(get_invitation_service),
+    activity_service: ActivityService = Depends(get_activity_service),
+):
+    """Public, unauthenticated: the name-only "join the project" flow for
+    email invitations. The invited email always comes from the token on the
+    server (get_email_invitation_or_raise), never from the request body -
+    the frontend never sends an email here at all. Falls back to a 409 if
+    the email already has an account, so an invitation link can never be
+    used as a password-less login for an existing account."""
+    try:
+        invitation = invitation_service.get_email_invitation_or_raise(token)
+    except InvitationNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InvitationNotEmailBasedError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except (InvitationRevokedError, InvitationExpiredError) as exc:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
+    except InvitationAlreadyAcceptedError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    try:
+        user = auth_service.provision_invited_user(payload.name, invitation.email)
+    except EmailAlreadyRegisteredError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    result = invitation_service.accept_invitation(token, user)
+    activity_service.log_member_joined(result.project_id, user)
+    token_str = create_access_token(user.id)
+    return InvitationOnboardResponse(
+        access_token=token_str,
+        user=UserRead.model_validate(user),
+        project_id=result.project_id,
+    )
+
+
 @router.post("/invitations/{invitation_id}/resend", response_model=InvitationRead)
 def resend_invitation(
     invitation_id: UUID,
@@ -154,6 +207,7 @@ def accept_invitation(
     token: str,
     current_user: User = Depends(get_current_user),
     invitation_service: InvitationService = Depends(get_invitation_service),
+    activity_service: ActivityService = Depends(get_activity_service),
 ):
     try:
         result = invitation_service.accept_invitation(token, current_user)
@@ -165,4 +219,5 @@ def accept_invitation(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except InvitationEmailMismatchError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    activity_service.log_member_joined(result.project_id, current_user)
     return InvitationAcceptResult(project_id=result.project_id)

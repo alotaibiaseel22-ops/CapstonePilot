@@ -1,8 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.api.schemas.auth import UserRead
 from app.domain.enums import InvitationStatus
 
 
@@ -31,6 +32,18 @@ class InvitationPreviewRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     project_name: str
+    inviter_name: str
     email: str | None
     user_exists: bool
     is_valid: bool
+
+
+class InvitationOnboardRequest(BaseModel):
+    name: str = Field(min_length=1)
+
+
+class InvitationOnboardResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserRead
+    project_id: UUID

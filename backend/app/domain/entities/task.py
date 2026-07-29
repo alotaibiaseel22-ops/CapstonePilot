@@ -16,3 +16,4 @@ class Task:
     assignee_id: UUID | None
     due_date: date | None
     created_at: datetime
+    updated_at: datetime

@@ -1,57 +1,64 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/shared/components/ui/card'
+import { useActivity } from '@/features/activity/hooks/useActivity'
 import { cn } from '@/shared/lib/utils'
 
 const ringColors = {
+  project_created: 'gray',
+  plan_generated: 'purple',
+  plan_approved: 'green',
+  plan_rejected: 'red',
+  task_completed: 'green',
+  risk_detected: 'red',
+  recommendation_approved: 'green',
+  recommendation_rejected: 'gray',
+  member_joined: 'gray',
+}
+
+const ringBorderClasses = {
   red: 'border-red-500',
   green: 'border-green-500',
   purple: 'border-purple-500',
   gray: 'border-gray-300',
 }
 
-const activity = [
-  {
-    ring: 'red',
-    text: 'AI agent flagged implementation delay in ML Classifier',
-    meta: '09:24 AM · AI Agent',
-  },
-  {
-    ring: 'green',
-    text: 'Omar Al-Rashidi completed "Database Schema Design" task',
-    meta: '08:50 AM · Omar A.',
-  },
-  {
-    ring: 'purple',
-    text: 'New recommendation: Redistribute backend tasks to reduce bottleneck',
-    meta: 'Yesterday · AI Agent',
-  },
-  {
-    ring: 'gray',
-    text: 'Milestone "API Integration" marked as in-progress',
-    meta: 'Yesterday · Lena Fischer',
-  },
-  {
-    ring: 'gray',
-    text: 'Sprint 3 retrospective notes uploaded',
-    meta: 'Mon, Jul 7 · Priya Nair',
-  },
-]
+function formatMeta(createdAt) {
+  return new Date(createdAt).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
 
 function ActivityFeed() {
+  const { data: events, isLoading } = useActivity(8)
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Recent Activity</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        {activity.map((item, i) => (
-          <div key={i} className="flex gap-3">
-            <span className={cn('mt-1 size-2.5 shrink-0 rounded-full border-2', ringColors[item.ring])} />
-            <div>
-              <p className="text-sm text-gray-800">{item.text}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{item.meta}</p>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading activity...</p>
+        ) : events.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No activity yet.</p>
+        ) : (
+          events.map((event) => (
+            <div key={event.id} className="flex gap-3">
+              <span
+                className={cn(
+                  'mt-1 size-2.5 shrink-0 rounded-full border-2',
+                  ringBorderClasses[ringColors[event.event_type] ?? 'gray'],
+                )}
+              />
+              <div>
+                <p className="text-sm text-gray-800">{event.message}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{formatMeta(event.created_at)}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </CardContent>
     </Card>
   )

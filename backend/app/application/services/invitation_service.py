@@ -51,6 +51,10 @@ class AlreadyAMemberError(Exception):
     pass
 
 
+class InvitationNotEmailBasedError(Exception):
+    pass
+
+
 @dataclass
 class AcceptedInvitationResult:
     project_id: uuid.UUID
@@ -59,6 +63,7 @@ class AcceptedInvitationResult:
 @dataclass
 class InvitationPreview:
     project_name: str
+    inviter_name: str
     email: str | None
     user_exists: bool
     is_valid: bool
@@ -233,6 +238,8 @@ class InvitationService:
 
         project = self._projects.get_by_id(invitation.project_id)
         project_name = project.name if project is not None else "this project"
+        inviter = self._users.get_by_id(invitation.invited_by)
+        inviter_name = inviter.name if inviter is not None else "Someone"
 
         user_exists = False
         if invitation.email is not None:
@@ -243,10 +250,32 @@ class InvitationService:
         )
         return InvitationPreview(
             project_name=project_name,
+            inviter_name=inviter_name,
             email=invitation.email,
             user_exists=user_exists,
             is_valid=is_valid,
         )
+
+    def get_email_invitation_or_raise(self, token: str) -> Invitation:
+        """Pre-check for the name-only onboarding flow (invitations.py's
+        /onboard endpoint) - validates the token is a usable *email*
+        invitation before any User is created for it. Does not create
+        membership or change status; accept_invitation still does that once
+        a User exists to pass it."""
+        invitation = self._invitations.get_by_token(token)
+        if invitation is None:
+            raise InvitationNotFoundError("This invitation link is invalid")
+        if invitation.email is None:
+            raise InvitationNotEmailBasedError(
+                "Shareable links don't carry an invited email - sign in or create an account"
+            )
+        if invitation.status == InvitationStatus.REVOKED:
+            raise InvitationRevokedError("This invitation has been revoked")
+        if invitation.status == InvitationStatus.ACCEPTED:
+            raise InvitationAlreadyAcceptedError("This invitation has already been accepted")
+        if self._is_expired(invitation):
+            raise InvitationExpiredError("This invitation has expired")
+        return invitation
 
     def accept_invitation(self, token: str, user: User) -> AcceptedInvitationResult:
         invitation = self._invitations.get_by_token(token)

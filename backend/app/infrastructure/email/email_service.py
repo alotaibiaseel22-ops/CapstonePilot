@@ -66,4 +66,5 @@ class SmtpEmailService(EmailService):
 def build_email_service() -> EmailService:
     if settings.SMTP_HOST:
         return SmtpEmailService()
+
     return ConsoleEmailService()

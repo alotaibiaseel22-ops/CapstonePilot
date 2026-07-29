@@ -1,11 +1,14 @@
 import uuid
 from datetime import UTC, date, datetime
 
+from app.application.ports.activity_event_repository import ActivityEventRepository
 from app.application.ports.invitation_repository import InvitationRepository
 from app.application.ports.milestone_repository import MilestoneRepository
 from app.application.ports.plan_repository import PlanRepository
 from app.application.ports.project_member_repository import ProjectMemberRepository
 from app.application.ports.project_repository import ProjectRepository
+from app.application.ports.recommendation_repository import RecommendationRepository
+from app.application.ports.risk_report_repository import RiskReportRepository
 from app.application.ports.task_repository import TaskRepository
 from app.domain.entities import Plan, Project
 from app.domain.enums import PlanStatus, ProjectStatus
@@ -28,6 +31,9 @@ class ProjectService:
         invitation_repository: InvitationRepository,
         milestone_repository: MilestoneRepository,
         task_repository: TaskRepository,
+        risk_report_repository: RiskReportRepository,
+        recommendation_repository: RecommendationRepository,
+        activity_event_repository: ActivityEventRepository,
     ):
         self._projects = project_repository
         self._plans = plan_repository
@@ -35,6 +41,9 @@ class ProjectService:
         self._invitations = invitation_repository
         self._milestones = milestone_repository
         self._tasks = task_repository
+        self._risk_reports = risk_report_repository
+        self._recommendations = recommendation_repository
+        self._activity_events = activity_event_repository
 
     def create_project(
         self,
@@ -72,8 +81,15 @@ class ProjectService:
         )
         return created
 
-    def list_projects(self) -> list[Project]:
-        return self._projects.list_all()
+    def list_projects(self, user_id: uuid.UUID) -> list[Project]:
+        """Only projects this user owns or is a member of - list_all() would
+        leak every user's projects to every other authenticated user."""
+        member_project_ids = {m.project_id for m in self._members.list_by_user(user_id)}
+        return [
+            project
+            for project in self._projects.list_all()
+            if project.owner_id == user_id or project.id in member_project_ids
+        ]
 
     def get_project(self, project_id: uuid.UUID) -> Project:
         project = self._projects.get_by_id(project_id)
@@ -125,12 +141,9 @@ class ProjectService:
                 self._milestones.delete(milestone.id)
             self._plans.delete(plan.id)
 
+        self._recommendations.delete_by_project(project_id)
+        self._risk_reports.delete_by_project(project_id)
+        self._activity_events.delete_by_project(project_id)
         self._members.delete_by_project(project_id)
         self._invitations.delete_by_project(project_id)
         self._projects.delete(project_id)
-
-    def get_current_plan(self, project_id: uuid.UUID) -> Plan:
-        plan = self._plans.get_current_for_project(project_id)
-        if plan is None:
-            raise ProjectNotFoundError(f"No plan found for project {project_id}")
-        return plan

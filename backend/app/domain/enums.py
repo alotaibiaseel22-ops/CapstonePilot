@@ -15,6 +15,7 @@ class ProjectStatus(StrEnum):
     PLANNING = "planning"
     ACTIVE = "active"
     COMPLETED = "completed"
+    ARCHIVED = "archived"
 
 
 class PlanStatus(StrEnum):

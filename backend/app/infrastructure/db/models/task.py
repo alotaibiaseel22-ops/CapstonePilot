@@ -21,3 +21,6 @@ class TaskModel(Base):
     )
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )

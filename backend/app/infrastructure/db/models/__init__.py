@@ -1,3 +1,4 @@
+from .activity_event import ActivityEventModel
 from .agent_run import AgentRunModel
 from .approval_decision import ApprovalDecisionModel
 from .invitation import InvitationModel
@@ -22,4 +23,5 @@ __all__ = [
     "RiskReportModel",
     "RecommendationModel",
     "ApprovalDecisionModel",
+    "ActivityEventModel",
 ]

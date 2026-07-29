@@ -1,27 +1,72 @@
+import asyncio
 import logging
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
+from app.api.v1.deps import get_risk_orchestrator, get_session_factory
 from app.api.v1.routers import (
+    activity,
     auth,
     invitations,
+    jobs,
     milestones,
+    notifications,
+    plans,
     project_members,
     projects,
     proposals,
+    recommendations,
+    risks,
     tasks,
     users,
 )
 from app.core.config import settings
+from app.infrastructure.db.session import SessionLocal
+from app.infrastructure.scheduler import run_monitoring_loop
+
+# The default from config.py - every token issued while this is still the
+# secret is forgeable by anyone who reads this (open-source) repo, so
+# booting with it in production is refused outright rather than silently
+# shipping an insecure deploy.
+_INSECURE_DEFAULT_JWT_SECRET = "change-me"
 
 # Without this, app-level logger.info() calls (e.g. the console email
 # fallback) are silently dropped - uvicorn only configures its own loggers.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="CapstonePilot API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.APP_ENV == "production" and settings.JWT_SECRET == _INSECURE_DEFAULT_JWT_SECRET:
+        raise RuntimeError(
+            "JWT_SECRET is still the default 'change-me' value - refusing to start in "
+            "production. Set a real, random JWT_SECRET in the environment."
+        )
+
+    # A plain asyncio background task, not a new deployed service - matches
+    # BackgroundTasks' existing "zero extra infra" trade-off. Disabled in
+    # tests (settings.ENABLE_SCHEDULER=False via conftest.py) so no stray
+    # tick races each test's own temp DB.
+    task = None
+    if settings.ENABLE_SCHEDULER:
+        task = asyncio.create_task(
+            run_monitoring_loop(
+                get_session_factory(), get_risk_orchestrator(), settings.MONITORING_INTERVAL_SECONDS
+            )
+        )
+    yield
+    if task is not None:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+
+app = FastAPI(title="CapstonePilot API", version="0.1.0", lifespan=lifespan)
 
 # In development, also accept any localhost port via regex, not just the
 # one exact origin in CORS_ORIGINS. Vite auto-bumps to 5174, 5175, etc. the
@@ -63,8 +108,29 @@ app.include_router(invitations.router, prefix="/api/v1")
 app.include_router(proposals.router, prefix="/api/v1")
 app.include_router(milestones.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
+app.include_router(plans.router, prefix="/api/v1")
+app.include_router(jobs.router, prefix="/api/v1")
+app.include_router(risks.router, prefix="/api/v1")
+app.include_router(recommendations.router, prefix="/api/v1")
+app.include_router(activity.router, prefix="/api/v1")
+app.include_router(notifications.router, prefix="/api/v1")
 
 
 @app.get("/health")
 def health_check():
+    return {"status": "ok"}
+
+
+@app.get("/health/ready")
+def readiness_check():
+    """Liveness (/health) only proves the process is up. This additionally
+    proves it can reach the database - what Render's health check should
+    actually point at, so a DB outage shows as unhealthy instead of a
+    silently-failing app that still answers 200 on every request."""
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+    except Exception:
+        logger.exception("Readiness check failed: database unreachable")
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
     return {"status": "ok"}

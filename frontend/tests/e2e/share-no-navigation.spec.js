@@ -2,6 +2,17 @@ import { test, expect } from '@playwright/test'
 
 const run = Date.now()
 
+// Every new project requires a schedule before it's usable - fills the
+// blocking dialog (Start Date is pre-filled with today) that now appears
+// right after "Generate AI Project Plan", before the "was created"
+// confirmation becomes reachable.
+async function fillProjectSchedule(page) {
+  await expect(page.getByRole('heading', { name: 'Set the Project Schedule' })).toBeVisible()
+  const deadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  await page.locator('input[type="date"]').last().fill(deadline)
+  await page.getByRole('button', { name: 'Save Schedule' }).click()
+}
+
 test.describe('Share never navigates away from the project', () => {
   test('the post-creation "Invite Team Members" button opens the modal, not Settings', async ({ page }) => {
     const email = `share-nav-${run}@example.com`
@@ -17,6 +28,7 @@ test.describe('Share never navigates away from the project', () => {
     await page.goto('/projects/new')
     await page.getByPlaceholder('ML-Based Traffic Optimization').fill(projectName)
     await page.getByRole('button', { name: 'Generate AI Project Plan' }).click()
+    await fillProjectSchedule(page)
     await expect(page.getByText(`"${projectName}" was created`)).toBeVisible()
 
     const urlBeforeClick = page.url()
@@ -49,6 +61,7 @@ test.describe('Share never navigates away from the project', () => {
     await page.goto('/projects/new')
     await page.getByPlaceholder('ML-Based Traffic Optimization').fill(projectName)
     await page.getByRole('button', { name: 'Generate AI Project Plan' }).click()
+    await fillProjectSchedule(page)
     await expect(page.getByText(`"${projectName}" was created`)).toBeVisible()
     await page.getByRole('link', { name: 'Go to Project' }).click()
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/)

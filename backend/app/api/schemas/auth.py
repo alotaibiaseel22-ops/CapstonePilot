@@ -19,6 +19,16 @@ class UserLogin(BaseModel):
     password: str
 
 
+class ProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1)
+    preferred_language: Language | None = None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=72)
+
+
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -16,3 +16,6 @@ class UserRepository(ABC):
 
     @abstractmethod
     def list_all(self) -> list[User]: ...
+
+    @abstractmethod
+    def update(self, user: User) -> User: ...
