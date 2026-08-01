@@ -34,4 +34,4 @@ EXPOSE 8000
 # receives the signal directly. Confirmed empirically: without `exec`,
 # `docker stop` took 11.4s (the full grace period, then a hard kill);
 # with it, uvicorn shuts down within it instead of forcing the timeout.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
