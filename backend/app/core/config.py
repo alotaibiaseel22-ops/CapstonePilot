@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,8 +26,20 @@ class Settings(BaseSettings):
     # Flash model" either way.
     GEMINI_MODEL: str = "gemini-flash-latest"
 
-   
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
+
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def _strip_trailing_slashes(cls, origins: list[str]) -> list[str]:
+        """CORSMiddleware's origin check is an exact string match against the
+        browser's Origin header, which never has a trailing slash - a
+        configured origin with one (an easy copy-paste mistake from a
+        browser address bar or a hosting dashboard) silently fails every
+        preflight from that origin with no indication why. Confirmed
+        empirically: CORS_ORIGINS=["https://app.vercel.app/"] does not match
+        an incoming Origin of "https://app.vercel.app". Normalizing here
+        makes that whole class of mistake a non-issue."""
+        return [origin.rstrip("/") for origin in origins]
 
     # Automatic Risk/Recommendation monitoring (Iteration 12). Disabled by
     # default in tests (conftest.py) so no stray background task races each
@@ -50,4 +63,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-print("CORS_ORIGINS =", settings.CORS_ORIGINS)

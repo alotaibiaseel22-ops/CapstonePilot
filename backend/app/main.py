@@ -84,6 +84,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Not a secret, and the single most useful line in the log for diagnosing a
+# CORS preflight 400 - the browser's exact Origin header (visible in the
+# 400 response itself, or via curl) has to appear verbatim in this list, or
+# the request is rejected before it ever reaches a route. Logged once at
+# startup so a mismatch (wrong domain, stray trailing slash, wrong scheme)
+# is visible without needing an ad hoc print statement each time.
+logger.info(
+    "CORS configured: APP_ENV=%s allow_origins=%s dev_localhost_regex_active=%s",
+    settings.APP_ENV,
+    settings.CORS_ORIGINS,
+    settings.APP_ENV == "development",
+)
+
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
