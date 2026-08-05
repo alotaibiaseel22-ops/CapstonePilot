@@ -11,7 +11,9 @@ class MilestoneModel(Base):
     __tablename__ = "milestones"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    plan_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("plans.id"), index=True)
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("plans.id", ondelete="CASCADE"), index=True
+    )
     title: Mapped[str] = mapped_column(String(255))
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     order: Mapped[int] = mapped_column(Integer, default=0)

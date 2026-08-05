@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.api.v1.deps import get_session_factory
 from app.infrastructure.db.models import InvitationModel
@@ -758,6 +758,57 @@ def test_delete_project_cascades_members_and_invitations(client):
         assert db.query(InvitationModel).filter_by(project_id=project_id).count() == 0
         assert db.query(PlanModel).filter_by(project_id=project_id).count() == 0
         assert db.query(MilestoneModel).count() == 0
+    finally:
+        db.close()
+
+
+def test_deleting_a_project_with_an_agent_run_succeeds(client):
+    """Regression test for a real production bug: deleting a project 500'd
+    with a foreign key IntegrityError because agent_runs.project_id was
+    never included in delete_project()'s cascade, even though every plan
+    generation and risk-analysis tick creates an AgentRun row tied to the
+    project. Inserts one directly (rather than driving a full plan
+    generation) since the point is specifically that this row exists and
+    must not block deletion, not how it got there."""
+    owner = register(client, "owner17b@example.com", role="project_owner")
+    headers = auth_headers(owner["access_token"])
+    project = client.post(
+        "/api/v1/projects", json={"name": "Agent Run Cascade Project", "description": ""},
+        headers=headers,
+    ).json()
+    project_id = UUID(project["id"])
+
+    db = client.session_factory()
+    try:
+        from app.infrastructure.db.models import AgentRunModel
+
+        now = datetime.now(UTC)
+        db.add(
+            AgentRunModel(
+                id=uuid4(),
+                project_id=project_id,
+                agent_type="planner",
+                status="succeeded",
+                input_ref={},
+                output_ref={"summary": "test"},
+                error=None,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        db.commit()
+        assert db.query(AgentRunModel).filter_by(project_id=project_id).count() == 1
+    finally:
+        db.close()
+
+    delete_resp = client.delete(f"/api/v1/projects/{project['id']}", headers=headers)
+    assert delete_resp.status_code == 204, delete_resp.text
+
+    db = client.session_factory()
+    try:
+        from app.infrastructure.db.models import AgentRunModel
+
+        assert db.query(AgentRunModel).filter_by(project_id=project_id).count() == 0
     finally:
         db.close()
 

@@ -21,3 +21,6 @@ class AgentRunRepository(ABC):
         output_ref: dict[str, Any] | None = None,
         error: str | None = None,
     ) -> AgentRun: ...
+
+    @abstractmethod
+    def delete_by_project(self, project_id: UUID) -> None: ...

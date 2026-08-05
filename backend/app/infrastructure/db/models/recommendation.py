@@ -12,9 +12,11 @@ class RecommendationModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     risk_report_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("risk_reports.id"), nullable=True
+        Uuid, ForeignKey("risk_reports.id", ondelete="CASCADE"), nullable=True
     )
-    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id"), index=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
     title: Mapped[str] = mapped_column(String(255))
     category: Mapped[str] = mapped_column(String(64))
     severity: Mapped[str] = mapped_column(String(16))

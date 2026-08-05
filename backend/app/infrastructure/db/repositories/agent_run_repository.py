@@ -66,3 +66,9 @@ class SqlAlchemyAgentRunRepository(AgentRunRepository):
         self._session.commit()
         self._session.refresh(model)
         return _to_entity(model)
+
+    def delete_by_project(self, project_id: UUID) -> None:
+        query = self._session.query(AgentRunModel).filter(AgentRunModel.project_id == project_id)
+        for model in query.all():
+            self._session.delete(model)
+        self._session.commit()

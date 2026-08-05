@@ -11,7 +11,9 @@ class TaskModel(Base):
     __tablename__ = "tasks"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    milestone_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("milestones.id"), index=True)
+    milestone_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("milestones.id", ondelete="CASCADE"), index=True
+    )
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(32))

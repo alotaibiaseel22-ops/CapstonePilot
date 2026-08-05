@@ -11,7 +11,9 @@ class RiskReportModel(Base):
     __tablename__ = "risk_reports"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id"), index=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
     plan_version: Mapped[int] = mapped_column(Integer)
     severity: Mapped[str] = mapped_column(String(16))
     category: Mapped[str] = mapped_column(String(64))

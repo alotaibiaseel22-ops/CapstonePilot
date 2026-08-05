@@ -78,6 +78,7 @@ def get_project_service(db: Session = Depends(get_db)) -> ProjectService:
         SqlAlchemyRiskReportRepository(db),
         SqlAlchemyRecommendationRepository(db),
         SqlAlchemyActivityEventRepository(db),
+        SqlAlchemyAgentRunRepository(db),
     )
 
 

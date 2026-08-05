@@ -19,6 +19,9 @@ from app.domain.enums import TaskPriority, UserRole  # noqa: E402
 from app.infrastructure.db.repositories.activity_event_repository import (  # noqa: E402
     SqlAlchemyActivityEventRepository,
 )
+from app.infrastructure.db.repositories.agent_run_repository import (  # noqa: E402
+    SqlAlchemyAgentRunRepository,
+)
 from app.infrastructure.db.repositories.invitation_repository import (  # noqa: E402
     SqlAlchemyInvitationRepository,
 )
@@ -117,6 +120,7 @@ def main() -> None:
             SqlAlchemyRiskReportRepository(db),
             SqlAlchemyRecommendationRepository(db),
             SqlAlchemyActivityEventRepository(db),
+            SqlAlchemyAgentRunRepository(db),
         )
         invitation_service = InvitationService(
             SqlAlchemyInvitationRepository(db),

@@ -11,7 +11,9 @@ class AgentRunModel(Base):
     __tablename__ = "agent_runs"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id"), index=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
     agent_type: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32))
     input_ref: Mapped[dict] = mapped_column(JSON, default=dict)
