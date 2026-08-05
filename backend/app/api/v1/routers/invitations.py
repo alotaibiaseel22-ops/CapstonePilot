@@ -1,8 +1,10 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials
 
 from app.api.schemas.auth import UserRead
+from app.api.schemas.guest import GuestJoinRequest, GuestRead, GuestSessionRead
 from app.api.schemas.invitation import (
     InvitationAcceptResult,
     InvitationEmailCreate,
@@ -15,11 +17,18 @@ from app.api.v1.deps import (
     get_activity_service,
     get_auth_service,
     get_current_user,
+    get_guest_service,
     get_invitation_service,
+    guest_bearer_scheme,
     require_role,
 )
 from app.application.services.activity_service import ActivityService
 from app.application.services.auth_service import AuthService, EmailAlreadyRegisteredError
+from app.application.services.guest_service import (
+    GuestAccessRevokedError,
+    GuestNotFoundError,
+    GuestService,
+)
 from app.application.services.invitation_service import (
     AlreadyAMemberError,
     InvitationAlreadyAcceptedError,
@@ -27,6 +36,7 @@ from app.application.services.invitation_service import (
     InvitationExpiredError,
     InvitationNotEmailBasedError,
     InvitationNotFoundError,
+    InvitationNotLinkBasedError,
     InvitationNotResendableError,
     InvitationRevokedError,
     InvitationService,
@@ -35,7 +45,11 @@ from app.application.services.invitation_service import (
 )
 from app.domain.entities import User
 from app.domain.enums import UserRole
-from app.infrastructure.security.jwt import create_access_token
+from app.infrastructure.security.jwt import (
+    create_access_token,
+    create_guest_access_token,
+    decode_guest_access_token,
+)
 
 router = APIRouter(tags=["invitations"])
 
@@ -168,6 +182,76 @@ def onboard_via_invitation(
         access_token=token_str,
         user=UserRead.model_validate(user),
         project_id=result.project_id,
+    )
+
+
+@router.post("/invitations/{token}/guest-join", response_model=GuestSessionRead)
+def guest_join(
+    token: str,
+    payload: GuestJoinRequest,
+    invitation_service: InvitationService = Depends(get_invitation_service),
+    guest_service: GuestService = Depends(get_guest_service),
+):
+    """Public, unauthenticated: the Figma/Canva-style "join with just a
+    name" flow for shareable link invitations. Always creates a new Guest
+    row + a fresh signed guest token - the frontend should call
+    GET /invitations/{token}/guest-session first with any stored token to
+    avoid double-joining on a return visit (see that route below)."""
+    try:
+        invitation = invitation_service.start_guest_session(token)
+    except InvitationNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InvitationNotLinkBasedError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except (InvitationRevokedError, InvitationExpiredError) as exc:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
+
+    guest = guest_service.create_guest(invitation, payload.display_name)
+    return GuestSessionRead(
+        guest_access_token=create_guest_access_token(guest.id, guest.project_id),
+        project_id=guest.project_id,
+        guest=GuestRead.model_validate(guest),
+    )
+
+
+@router.get("/invitations/{token}/guest-session", response_model=GuestSessionRead)
+def get_guest_session(
+    token: str,
+    credentials: HTTPAuthorizationCredentials | None = Depends(guest_bearer_scheme),
+    invitation_service: InvitationService = Depends(get_invitation_service),
+    guest_service: GuestService = Depends(get_guest_service),
+):
+    """Public: resumes an already-issued guest session (a stored token from
+    a previous visit) without creating a new Guest row, so a returning
+    visitor skips the name prompt. Never mutates anything - a missing or
+    no-longer-valid token is just a 401, telling the frontend to fall back
+    to guest-join."""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="No guest session token provided"
+        )
+    payload = decode_guest_access_token(credentials.credentials)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired guest session"
+        )
+
+    try:
+        invitation = invitation_service.start_guest_session(token)
+    except (InvitationNotFoundError, InvitationNotLinkBasedError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (InvitationRevokedError, InvitationExpiredError) as exc:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
+
+    try:
+        guest = guest_service.resolve_guest(payload.guest_id, invitation.project_id)
+    except (GuestNotFoundError, GuestAccessRevokedError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+    return GuestSessionRead(
+        guest_access_token=credentials.credentials,
+        project_id=guest.project_id,
+        guest=GuestRead.model_validate(guest),
     )
 
 

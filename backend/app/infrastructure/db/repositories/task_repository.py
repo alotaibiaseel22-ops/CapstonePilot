@@ -17,6 +17,7 @@ def _to_entity(model: TaskModel) -> Task:
         status=TaskStatus(model.status),
         priority=TaskPriority(model.priority),
         assignee_id=model.assignee_id,
+        assignee_guest_id=model.assignee_guest_id,
         due_date=model.due_date,
         created_at=model.created_at,
         updated_at=model.updated_at,
@@ -44,6 +45,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
             status=task.status.value,
             priority=task.priority.value,
             assignee_id=task.assignee_id,
+            assignee_guest_id=task.assignee_guest_id,
             due_date=task.due_date,
             created_at=task.created_at,
             updated_at=task.updated_at,
@@ -62,6 +64,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
         model.status = task.status.value
         model.priority = task.priority.value
         model.assignee_id = task.assignee_id
+        model.assignee_guest_id = task.assignee_guest_id
         model.due_date = task.due_date
         self._session.commit()
         self._session.refresh(model)

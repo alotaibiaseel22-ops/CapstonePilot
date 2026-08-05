@@ -5,7 +5,7 @@ const ownerName = 'E2E Owner'
 const ownerEmail = `owner-${run}@example.com`
 const ownerPassword = 'secret123'
 const collaboratorEmail = `collab-${run}@example.com`
-const password = 'secret123'
+const linkAcceptEmail = `link-accept-${run}@example.com`
 const shareProjectName = `Playwright Share Project ${run}`
 const cardDeleteProjectName = `Playwright Card Delete Project ${run}`
 
@@ -123,25 +123,65 @@ test.describe.serial('CapstonePilot end-to-end', () => {
     await expect(page.getByRole('dialog', { name: 'Share Project' })).toHaveCount(0)
   })
 
-  test('a new collaborator joins via the shareable link', async ({ browser }) => {
+  test('a visitor joins as a guest via the shareable link - no account, no login', async ({ browser }) => {
+    // The whole point of the shareable link (Figma/Canva-style access): no
+    // email, no password, ever - never redirected to Login or Register.
     expect(shareableLink).toContain('/invite/')
+    const guestContext = await browser.newContext()
+    const guestPage = await guestContext.newPage()
+
+    await guestPage.goto(shareableLink)
+    await expect(guestPage).toHaveURL(/\/guest\//)
+    await expect(guestPage.getByLabel('Email', { exact: false })).toHaveCount(0)
+    await expect(guestPage.getByLabel('Password', { exact: false })).toHaveCount(0)
+
+    await guestPage.getByPlaceholder('Jane Doe').fill('E2E Guest')
+    await guestPage.getByRole('button', { name: 'Continue' }).click()
+
+    await expect(guestPage.getByText(shareProjectName)).toBeVisible()
+    await expect(guestPage.getByText('Guest view')).toBeVisible()
+
+    // A second visit with the same link, same browser, resumes the same
+    // guest identity instead of prompting for a name again.
+    await guestPage.goto(shareableLink)
+    await expect(guestPage.getByText(shareProjectName)).toBeVisible()
+    await expect(guestPage.getByPlaceholder('Jane Doe')).toHaveCount(0)
+
+    await guestContext.close()
+  })
+
+  test('a guest joining via the link never becomes a project Member', async () => {
+    await page.reload()
+    await page.getByRole('button', { name: 'Share' }).click()
+    const modal = page.getByRole('dialog', { name: 'Share Project' })
+
+    await expect(modal.locator('[data-testid="access-row"]').filter({ hasText: 'E2E Guest' })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+  })
+
+  test('a separate email invite is still accepted as a full member, shown on the Share dialog', async ({
+    browser,
+  }) => {
+    await page.getByRole('button', { name: 'Share' }).click()
+    const modal = page.getByRole('dialog', { name: 'Share Project' })
+    await page.getByPlaceholder('name@example.com').fill(linkAcceptEmail)
+    await page.getByRole('button', { name: 'Invite', exact: true }).click()
+    await expect(page.getByText(`Invitation sent to ${linkAcceptEmail}`)).toBeVisible()
+
+    const row = modal.locator('[data-testid="pending-invitation-row"]').filter({ hasText: linkAcceptEmail })
+    await row.getByLabel(`Actions for ${linkAcceptEmail}`).click()
+    await page.getByRole('menuitem', { name: 'Copy Invite Link' }).click()
+    const linkAcceptInviteLink = await page.evaluate(() => navigator.clipboard.readText())
+    expect(linkAcceptInviteLink).toContain('/invite/')
+    await page.keyboard.press('Escape')
+
     const collabContext = await browser.newContext()
     const collabPage = await collabContext.newPage()
-
-    await collabPage.goto(shareableLink)
-    await expect(collabPage).toHaveURL(/\/login/)
-
-    await collabPage.getByRole('link', { name: 'Create one' }).click()
-    await expect(collabPage).toHaveURL(/\/register/)
-
+    await collabPage.goto(linkAcceptInviteLink)
+    await expect(collabPage.getByRole('heading', { name: `Join ${shareProjectName}` })).toBeVisible()
     await collabPage.getByPlaceholder('Jane Doe').fill('E2E Collaborator')
-    await collabPage.locator('input[type="email"]').fill(collaboratorEmail)
-    await collabPage.locator('input[type="password"]').fill(password)
-    await collabPage.getByRole('button', { name: 'Create account' }).click()
-
+    await collabPage.getByRole('button', { name: 'Join Project' }).click()
     await expect(collabPage).toHaveURL(/\/projects\/[0-9a-f-]+$/)
-    await expect(collabPage.getByRole('heading', { name: shareProjectName })).toBeVisible()
-
     await collabContext.close()
   })
 
@@ -172,7 +212,11 @@ test.describe.serial('CapstonePilot end-to-end', () => {
   })
 
   test('re-inviting an existing collaborator shows an error toast', async () => {
-    await page.getByPlaceholder('name@example.com').fill(collaboratorEmail)
+    // linkAcceptEmail, not collaboratorEmail - that invitation was accepted
+    // (see "a separate email invite is still accepted..." above), so it's
+    // the one that's actually a member now. collaboratorEmail's own
+    // invitation is still sitting pending, untouched, for the next test.
+    await page.getByPlaceholder('name@example.com').fill(linkAcceptEmail)
     await page.getByRole('button', { name: 'Invite', exact: true }).click()
 
     await expect(page.getByLabel(/Notifications/).getByText(/already a member/i)).toBeVisible()

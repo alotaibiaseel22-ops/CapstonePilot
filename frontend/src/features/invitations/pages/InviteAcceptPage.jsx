@@ -41,19 +41,28 @@ function InviteAcceptPage() {
       .then((preview) => {
         // A valid email invite for someone without an account yet skips
         // Login/Register entirely and joins with just a name - the token
-        // already proves who they are. Everything else (an email that
-        // already has an account, or a shareable link with no specific
-        // invited email) falls back to the normal Login/Register detour,
-        // exactly as before: an invitation link must never double as a
-        // password-less login for an existing account.
+        // already proves who they are. An email that already has an
+        // account still falls back to the normal Login/Register detour: an
+        // invitation link must never double as a password-less login for
+        // an existing account.
         if (preview.is_valid && preview.email && !preview.user_exists) {
           setOnboardingPreview(preview)
           return
         }
-        const destination = preview.email && !preview.user_exists ? '/register' : '/login'
+        // A shareable link (no specific invited email) is Figma/Canva-style
+        // guest access - no account, ever. /guest/:token owns the rest of
+        // this flow (resuming an already-stored guest session, or
+        // prompting for just a name); routed there even if the link turns
+        // out to be expired/revoked, so that error shows inline in the
+        // guest-join form instead of a confusing login prompt.
+        if (!preview.email) {
+          navigate(`/guest/${token}`, { replace: true })
+          return
+        }
+        const destination = preview.user_exists ? '/login' : '/register'
         navigate(destination, {
           replace: true,
-          state: { from: `/invite/${token}`, inviteEmail: preview.email ?? undefined },
+          state: { from: `/invite/${token}`, inviteEmail: preview.email },
         })
       })
       .catch(() => {

@@ -4,10 +4,12 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.api.schemas.milestone import MilestoneCreate, MilestoneRead, MilestoneUpdate
 from app.api.v1.deps import (
-    get_current_user,
+    Actor,
     get_milestone_service,
     get_risk_orchestrator,
     get_session_factory,
+    require_project_access,
+    require_project_access_for_milestone,
     require_role,
 )
 from app.application.ports.risk_orchestrator import RiskAnalysisOrchestratorPort
@@ -45,16 +47,19 @@ def create_milestone(
 @router.get("/projects/{project_id}/milestones", response_model=list[MilestoneRead])
 def list_milestones(
     project_id: UUID,
-    _current_user: User = Depends(get_current_user),
+    _actor: Actor = Depends(require_project_access()),
     milestone_service: MilestoneService = Depends(get_milestone_service),
 ):
+    """Open to guests too (project-wide milestone/plan visibility is part of
+    the guest dashboard) - also closes the pre-existing gap where this used
+    to accept any authenticated user regardless of project membership."""
     return [MilestoneRead.model_validate(m) for m in milestone_service.list_milestones(project_id)]
 
 
 @router.get("/milestones/{milestone_id}", response_model=MilestoneRead)
 def get_milestone(
     milestone_id: UUID,
-    _current_user: User = Depends(get_current_user),
+    _actor: Actor = Depends(require_project_access_for_milestone()),
     milestone_service: MilestoneService = Depends(get_milestone_service),
 ):
     try:

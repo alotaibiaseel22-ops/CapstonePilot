@@ -51,6 +51,7 @@ def make_task(**overrides) -> Task:
         status=TaskStatus.PENDING,
         priority=TaskPriority.MEDIUM,
         assignee_id=None,
+        assignee_guest_id=None,
         due_date=None,
         created_at=datetime(2026, 6, 1, tzinfo=UTC),
         # Recent by default (one day before TODAY) so existing tests don't

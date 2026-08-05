@@ -14,6 +14,10 @@ class Task:
     status: TaskStatus
     priority: TaskPriority
     assignee_id: UUID | None
+    # Mutually exclusive with assignee_id - a task is assigned to a real
+    # User or to a Guest, never both (enforced in TaskService and by a DB
+    # check constraint on the tasks table). None for unassigned tasks.
+    assignee_guest_id: UUID | None
     due_date: date | None
     created_at: datetime
     updated_at: datetime

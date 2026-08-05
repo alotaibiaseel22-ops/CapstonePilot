@@ -1,3 +1,4 @@
+import logging
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from app.application.ports.user_repository import UserRepository
 from app.core.config import settings
 from app.domain.entities import Invitation, ProjectMember, User
 from app.domain.enums import InvitationStatus
+
+logger = logging.getLogger(__name__)
 
 EMAIL_INVITATION_LIFETIME = timedelta(days=7)
 
@@ -52,6 +55,10 @@ class AlreadyAMemberError(Exception):
 
 
 class InvitationNotEmailBasedError(Exception):
+    pass
+
+
+class InvitationNotLinkBasedError(Exception):
     pass
 
 
@@ -99,7 +106,26 @@ class InvitationService:
         project = self._projects.get_by_id(invitation.project_id)
         inviter = self._users.get_by_id(invited_by)
         if project is None or inviter is None or invitation.email is None:
+            # This used to be a silent no-op - logged now purely for
+            # visibility (still returns, still never raises), since a
+            # missed lookup here is otherwise indistinguishable from an
+            # actual send failure when debugging "invitation email never
+            # arrived" from logs alone.
+            logger.warning(
+                "send_invitation_email() NOT called for invitation %s - "
+                "project_found=%s inviter_found=%s email_present=%s",
+                invitation.id,
+                project is not None,
+                inviter is not None,
+                invitation.email is not None,
+            )
             return
+        logger.info(
+            "Calling send_invitation_email() for invitation %s | to=%s | via=%s",
+            invitation.id,
+            invitation.email,
+            type(self._email_service).__name__,
+        )
         self._email_service.send_invitation_email(
             to_email=invitation.email,
             project_name=project.name,
@@ -161,15 +187,8 @@ class InvitationService:
         self._send_invitation_email(updated, requesting_user_id)
         return updated
 
-    def get_or_create_link_invitation(
-        self, project_id: uuid.UUID, invited_by: uuid.UUID
-    ) -> Invitation:
-        self._assert_owner(project_id, invited_by)
-
-        existing = self._invitations.get_active_link_invitation(project_id)
-        if existing is not None:
-            return existing
-
+    def _create_link_invitation(self, project_id: uuid.UUID, invited_by: uuid.UUID) -> Invitation:
+        now = datetime.now(UTC)
         invitation = Invitation(
             id=uuid.uuid4(),
             project_id=project_id,
@@ -177,12 +196,30 @@ class InvitationService:
             token=secrets.token_urlsafe(32),
             status=InvitationStatus.PENDING,
             invited_by=invited_by,
-            created_at=datetime.now(UTC),
+            created_at=now,
             accepted_at=None,
             accepted_by=None,
-            expires_at=None,
+            expires_at=now + timedelta(days=settings.INVITATION_LINK_EXPIRE_DAYS),
         )
         return self._invitations.create(invitation)
+
+    def get_or_create_link_invitation(
+        self, project_id: uuid.UUID, invited_by: uuid.UUID
+    ) -> Invitation:
+        self._assert_owner(project_id, invited_by)
+
+        existing = self._invitations.get_active_link_invitation(project_id)
+        if existing is not None:
+            if not self._is_expired(existing):
+                return existing
+            # get_active_link_invitation only filters on status, not expiry -
+            # without this check, an owner would silently be handed back an
+            # already-dead link forever. Revoke it and fall through to
+            # minting a fresh one, same as regenerate_link_invitation does.
+            existing.status = InvitationStatus.REVOKED
+            self._invitations.update(existing)
+
+        return self._create_link_invitation(project_id, invited_by)
 
     def regenerate_link_invitation(
         self, project_id: uuid.UUID, invited_by: uuid.UUID
@@ -196,19 +233,7 @@ class InvitationService:
             existing.status = InvitationStatus.REVOKED
             self._invitations.update(existing)
 
-        invitation = Invitation(
-            id=uuid.uuid4(),
-            project_id=project_id,
-            email=None,
-            token=secrets.token_urlsafe(32),
-            status=InvitationStatus.PENDING,
-            invited_by=invited_by,
-            created_at=datetime.now(UTC),
-            accepted_at=None,
-            accepted_by=None,
-            expires_at=None,
-        )
-        return self._invitations.create(invitation)
+        return self._create_link_invitation(project_id, invited_by)
 
     def list_invitations(
         self, project_id: uuid.UUID, requesting_user_id: uuid.UUID
@@ -273,6 +298,27 @@ class InvitationService:
             raise InvitationRevokedError("This invitation has been revoked")
         if invitation.status == InvitationStatus.ACCEPTED:
             raise InvitationAlreadyAcceptedError("This invitation has already been accepted")
+        if self._is_expired(invitation):
+            raise InvitationExpiredError("This invitation has expired")
+        return invitation
+
+    def start_guest_session(self, token: str) -> Invitation:
+        """Pre-check for the guest-join/guest-session flow (invitations.py's
+        /guest-join and /guest-session endpoints) - validates the token is a
+        usable *link* invitation before any Guest is created for it. Mirrors
+        get_email_invitation_or_raise, inverted: a targeted email invitation
+        must go through /onboard (or full login/register), never guest-join -
+        this keeps a guest link from being used to dodge the "invited email
+        must match" check email invitations enforce."""
+        invitation = self._invitations.get_by_token(token)
+        if invitation is None:
+            raise InvitationNotFoundError("This invitation link is invalid")
+        if invitation.email is not None:
+            raise InvitationNotLinkBasedError(
+                "This is a personal invitation - sign in or create an account"
+            )
+        if invitation.status == InvitationStatus.REVOKED:
+            raise InvitationRevokedError("This invitation has been revoked")
         if self._is_expired(invitation):
             raise InvitationExpiredError("This invitation has expired")
         return invitation

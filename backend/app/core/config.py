@@ -15,6 +15,17 @@ class Settings(BaseSettings):
     # expires. Applies to every user, owners included - a 60-minute session
     # was arguably too short for this app regardless of this feature.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30
+    # How long a browser's guest session (from joining a shareable link -
+    # see guest_service.py) stays valid before needing to rejoin via the
+    # link. Distinct from INVITATION_LINK_EXPIRE_DAYS below: this is the
+    # already-issued session's lifetime, that's how long the link itself
+    # remains redeemable at all - two independent lifetimes.
+    GUEST_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
+    # How long a shareable link invitation stays redeemable. Applies only to
+    # links created/regenerated after this setting was introduced - existing
+    # links already in the DB keep their original expires_at=None (never
+    # expires) rather than being silently broken by a new default.
+    INVITATION_LINK_EXPIRE_DAYS: int = 30
     # Official Google GenAI SDK (crewai's native "gemini" provider), not OpenRouter.
     # One Flash-tier model for both Documentation Analysis and the Planner - see
     # architecture.md section 11. Model choice stays a config change, not a code one.

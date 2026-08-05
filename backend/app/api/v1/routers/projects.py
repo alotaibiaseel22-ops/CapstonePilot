@@ -4,12 +4,14 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.api.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
 from app.api.v1.deps import (
+    Actor,
     get_activity_service,
     get_current_user,
     get_project_service,
     get_risk_orchestrator,
     get_session_factory,
     get_user_repository,
+    require_project_access,
     require_role,
 )
 from app.application.ports.risk_orchestrator import RiskAnalysisOrchestratorPort
@@ -80,10 +82,15 @@ def list_projects(
 @router.get("/{project_id}", response_model=ProjectRead)
 def get_project(
     project_id: UUID,
-    _current_user: User = Depends(get_current_user),
+    _actor: Actor = Depends(require_project_access()),
     project_service: ProjectService = Depends(get_project_service),
     user_repository: UserRepository = Depends(get_user_repository),
 ):
+    """Gated by require_project_access, not a bare get_current_user - both
+    real project members/owners AND guests (see the guest-access redesign)
+    can reach this, but only for a project they actually belong to. This
+    also closes a pre-existing gap: previously ANY authenticated user could
+    view ANY project by id here, with no membership check at all."""
     try:
         return _to_project_read(project_service.get_project(project_id), user_repository)
     except ProjectNotFoundError as exc:

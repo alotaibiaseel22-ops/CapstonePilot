@@ -1,8 +1,22 @@
+import logging
 import smtplib
 from email.message import EmailMessage
 
 from app.application.ports.email_service import EmailService
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def _mask_identifier(value: str) -> str:
+    """First char only, e.g. 'alice@x.com' -> 'a***@x.com' - enough to
+    confirm in logs which account is configured without exposing it."""
+    if not value:
+        return "(not set)"
+    if "@" not in value:
+        return "***"
+    local, _, domain = value.partition("@")
+    return f"{local[0]}***@{domain}"
 
 
 class ConsoleEmailService(EmailService):
@@ -55,16 +69,78 @@ class SmtpEmailService(EmailService):
 </div>""",
             subtype="html",
         )
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as smtp:
-            if settings.SMTP_USE_TLS:
-                smtp.starttls()
-            if settings.SMTP_USERNAME:
-                smtp.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            smtp.send_message(message)
+
+        logger.info(
+            "[SMTP] Preparing invitation email | to=%s | from=%s | host=%s:%s | "
+            "tls=%s | username=%s | password_set=%s",
+            to_email,
+            settings.SMTP_FROM_EMAIL,
+            settings.SMTP_HOST,
+            settings.SMTP_PORT,
+            settings.SMTP_USE_TLS,
+            _mask_identifier(settings.SMTP_USERNAME),
+            bool(settings.SMTP_PASSWORD),
+        )
+        try:
+            logger.info("[SMTP] Connecting to %s:%s", settings.SMTP_HOST, settings.SMTP_PORT)
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as smtp:
+                if settings.SMTP_USE_TLS:
+                    logger.info("[SMTP] Starting TLS (STARTTLS)")
+                    smtp.starttls()
+                else:
+                    logger.warning(
+                        "[SMTP] SMTP_USE_TLS is False - sending without TLS on %s:%s",
+                        settings.SMTP_HOST,
+                        settings.SMTP_PORT,
+                    )
+                if settings.SMTP_USERNAME:
+                    logger.info(
+                        "[SMTP] Authenticating as %s", _mask_identifier(settings.SMTP_USERNAME)
+                    )
+                    smtp.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                else:
+                    logger.warning(
+                        "[SMTP] SMTP_USERNAME is not set - skipping authentication "
+                        "(will fail unless %s:%s accepts anonymous mail)",
+                        settings.SMTP_HOST,
+                        settings.SMTP_PORT,
+                    )
+                logger.info("[SMTP] Sending message to %s", to_email)
+                smtp.send_message(message)
+            logger.info("[SMTP] Invitation email sent successfully to %s", to_email)
+        except Exception:
+            logger.exception(
+                "[SMTP] Failed to send invitation email to %s via %s:%s "
+                "(from=%s, tls=%s, username=%s)",
+                to_email,
+                settings.SMTP_HOST,
+                settings.SMTP_PORT,
+                settings.SMTP_FROM_EMAIL,
+                settings.SMTP_USE_TLS,
+                _mask_identifier(settings.SMTP_USERNAME),
+            )
+            raise
 
 
 def build_email_service() -> EmailService:
     if settings.SMTP_HOST:
+        logger.info(
+            "SMTP is enabled | host=%s:%s | tls=%s | username=%s | password_set=%s | from=%s",
+            settings.SMTP_HOST,
+            settings.SMTP_PORT,
+            settings.SMTP_USE_TLS,
+            _mask_identifier(settings.SMTP_USERNAME),
+            bool(settings.SMTP_PASSWORD),
+            settings.SMTP_FROM_EMAIL,
+        )
+        if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
+            logger.warning(
+                "SMTP_HOST is set but SMTP_USERNAME or SMTP_PASSWORD is missing - "
+                "authentication will likely fail (username_set=%s, password_set=%s)",
+                bool(settings.SMTP_USERNAME),
+                bool(settings.SMTP_PASSWORD),
+            )
         return SmtpEmailService()
 
+    logger.warning("SMTP is disabled. Falling back to console logging.")
     return ConsoleEmailService()

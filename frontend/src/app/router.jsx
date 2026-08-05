@@ -1,9 +1,13 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from './layout/AppShell'
 import { ProtectedRoute } from './layout/ProtectedRoute'
+import { GuestRoute } from './layout/GuestRoute'
+import { GuestShell } from './layout/GuestShell'
+import { GuestSessionProvider } from '@/app/providers/GuestSessionProvider'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { RegisterPage } from '@/features/auth/pages/RegisterPage'
 import { InviteAcceptPage } from '@/features/invitations/pages/InviteAcceptPage'
+import { GuestProjectPage } from '@/features/guest/pages/GuestProjectPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { ProjectListPage } from '@/features/projects/pages/ProjectListPage'
 import { CreateProjectPage } from '@/features/projects/pages/CreateProjectPage'
@@ -19,6 +23,20 @@ const router = createBrowserRouter([
   { path: 'login', element: <LoginPage /> },
   { path: 'register', element: <RegisterPage /> },
   { path: 'invite/:token', element: <InviteAcceptPage /> },
+  {
+    path: 'guest/:invitationToken',
+    element: (
+      <GuestSessionProvider>
+        <GuestRoute />
+      </GuestSessionProvider>
+    ),
+    children: [
+      {
+        element: <GuestShell />,
+        children: [{ index: true, element: <GuestProjectPage /> }],
+      },
+    ],
+  },
   {
     element: <ProtectedRoute />,
     children: [

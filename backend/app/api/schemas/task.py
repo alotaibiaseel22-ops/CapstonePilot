@@ -11,6 +11,7 @@ class TaskCreate(BaseModel):
     description: str = ""
     priority: TaskPriority = TaskPriority.MEDIUM
     assignee_id: UUID | None = None
+    assignee_guest_id: UUID | None = None
     due_date: date | None = None
 
 
@@ -20,7 +21,15 @@ class TaskUpdate(BaseModel):
     status: TaskStatus | None = None
     priority: TaskPriority | None = None
     assignee_id: UUID | None = None
+    assignee_guest_id: UUID | None = None
     due_date: date | None = None
+
+
+class TaskStatusUpdate(BaseModel):
+    """Restricted update body for guests - status only, nothing else on the
+    task is guest-mutable. See TaskService.update_status_as_guest."""
+
+    status: TaskStatus
 
 
 class TaskRead(BaseModel):
@@ -33,5 +42,6 @@ class TaskRead(BaseModel):
     status: TaskStatus
     priority: TaskPriority
     assignee_id: UUID | None
+    assignee_guest_id: UUID | None
     due_date: date | None
     created_at: datetime
