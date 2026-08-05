@@ -150,7 +150,7 @@ def get_planning_orchestrator() -> PlanningOrchestratorPort:
     that booting the app (or running with no key at all) never pays crewai's
     import cost, which is the whole point of the fake being a *lightweight*
     fallback."""
-    if settings.GEMINI_API_KEY:
+    if settings.GEMINI_API_KEYS:
         from app.infrastructure.agents.crewai_planning_orchestrator import (
             CrewAIPlanningOrchestrator,
         )
@@ -176,7 +176,7 @@ def get_risk_orchestrator() -> RiskAnalysisOrchestratorPort:
     """Same key-presence branch as get_planning_orchestrator, same deferred
     crewai-backed import so booting with no key never pays crewai's import
     cost."""
-    if settings.GEMINI_API_KEY:
+    if settings.GEMINI_API_KEYS:
         from app.infrastructure.agents.crewai_risk_orchestrator import CrewAIRiskOrchestrator
 
         return CrewAIRiskOrchestrator()

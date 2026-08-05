@@ -18,13 +18,42 @@ class Settings(BaseSettings):
     # Official Google GenAI SDK (crewai's native "gemini" provider), not OpenRouter.
     # One Flash-tier model for both Documentation Analysis and the Planner - see
     # architecture.md section 11. Model choice stays a config change, not a code one.
+    #
+    # GEMINI_API_KEY is the legacy single-key var, kept so an existing deployment
+    # that only has this set keeps working unchanged. GEMINI_API_KEY_1/2/3 are the
+    # preferred multi-key vars - set any number of them (1 is enough) to enable
+    # automatic rotation past a rate-limited/quota-exhausted key in
+    # infrastructure/agents/gemini_client.py. If any numbered key is set, the
+    # numbered ones win outright (no mixing) - see GEMINI_API_KEYS below.
     GEMINI_API_KEY: str = ""
-    # "gemini-2.5-flash" itself 404s as "no longer available to new users" on
-    # freshly-created API keys (confirmed against the real API, not assumed) -
-    # "gemini-flash-latest" is Google's own always-current-Flash alias and is
-    # what's actually accessible; satisfies "2.5 Flash or the latest available
-    # Flash model" either way.
-    GEMINI_MODEL: str = "gemini-flash-latest"
+    GEMINI_API_KEY_1: str = ""
+    GEMINI_API_KEY_2: str = ""
+    GEMINI_API_KEY_3: str = ""
+    # "gemini-2.5-flash" and "gemini-2.5-flash-lite" both 404 as "no longer
+    # available to new users" on this project's actual API key (confirmed live
+    # against the real API, not assumed - same restriction Google applies to
+    # several versioned model names for newer projects). "gemini-flash-lite-latest"
+    # is Google's own always-current Flash-Lite alias and is what's actually
+    # accessible; confirmed live (client.models.get) that it resolves to a real
+    # "Gemini Flash-Lite Latest" model, not a relabeled regular Flash. Lightest
+    # production Flash-tier model available to this key, replacing
+    # "gemini-flash-latest" to cut cost and 503/high-demand errors.
+    GEMINI_MODEL: str = "gemini-flash-lite-latest"
+
+    @property
+    def GEMINI_API_KEYS(self) -> list[str]:
+        """The ordered pool of keys gemini_client.py rotates through. Prefers
+        GEMINI_API_KEY_1/2/3 (whichever are non-empty, in order); if none of
+        those are set at all, falls back to the single legacy GEMINI_API_KEY
+        so a deployment with only that var still works normally."""
+        numbered = [
+            key
+            for key in (self.GEMINI_API_KEY_1, self.GEMINI_API_KEY_2, self.GEMINI_API_KEY_3)
+            if key
+        ]
+        if numbered:
+            return numbered
+        return [self.GEMINI_API_KEY] if self.GEMINI_API_KEY else []
 
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
 
