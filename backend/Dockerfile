@@ -21,9 +21,9 @@ USER appuser
 ENV PORT=8000
 EXPOSE 8000
 
-# Migrations are NOT run here - `alembic upgrade head` is a separate,
-# manual deployment step (see docs/deployment.md). This container's only
-# job is running the app.
+# Migrations run automatically on container start (`alembic upgrade head`) -
+# if they fail, `&&` short-circuits and the container exits non-zero before
+# ever starting uvicorn, rather than serving traffic against a stale schema.
 #
 # `exec` matters here, not just style: without it, `sh` stays PID 1 and
 # uvicorn runs as its child - Docker's SIGTERM on `stop`/redeploy then hits

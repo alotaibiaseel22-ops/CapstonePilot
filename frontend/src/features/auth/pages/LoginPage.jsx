@@ -28,12 +28,7 @@ function LoginPage() {
       await login(email, password)
       navigate(location.state?.from ?? '/dashboard', { replace: true })
     } catch (err) {
-      if (err.response?.status === 401) {
-        console.error('Login failed: incorrect credentials', err)
-        setError('Incorrect email or password.')
-      } else {
-        setError(getApiErrorMessage(err, 'Could not sign in. Please try again.'))
-      }
+      setError(getApiErrorMessage(err, 'Could not sign in. Please try again.'))
     } finally {
       setSubmitting(false)
     }
