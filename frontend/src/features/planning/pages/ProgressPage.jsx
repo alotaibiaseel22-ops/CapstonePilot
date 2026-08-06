@@ -5,6 +5,8 @@ import { LoadingState } from '@/shared/components/common/LoadingState'
 import { ErrorState } from '@/shared/components/common/ErrorState'
 import { useAuth } from '@/app/providers/AuthProvider'
 import { useProject } from '@/features/projects/hooks/useProjects'
+import { useProjectMembers } from '@/features/projects/hooks/useProjectMembers'
+import { useProjectGuests } from '@/features/projects/hooks/useProjectGuests'
 import { getTasks } from '../api/milestones'
 import { useMilestones } from '../hooks/useMilestones'
 import { MilestoneAccordion } from '../components/MilestoneAccordion'
@@ -15,6 +17,22 @@ function ProgressPage() {
   const { user } = useAuth()
   const { data: project, isLoading: projectLoading, isError: projectError } = useProject(id)
   const { data: milestones, isLoading: milestonesLoading, isError: milestonesError } = useMilestones(id)
+  const { data: projectMembers = [] } = useProjectMembers(id)
+  const { data: guests = [] } = useProjectGuests(id)
+
+  // list_members never includes the project owner, but the owner is a
+  // perfectly valid assignee too - prepended here rather than changing what
+  // that endpoint returns (ShareModal.jsx already renders the owner
+  // separately from `members` for the same reason). `role: 'owner'` here is
+  // a synthetic display-only marker - list_members' own `role` field means
+  // something different (a user's account-wide role), but the two never
+  // collide since a real API row's role is always 'project_owner'/'collaborator'.
+  const assignableMembers = project
+    ? [
+        { user_id: project.owner_id, name: project.owner_name, role: 'owner' },
+        ...projectMembers,
+      ]
+    : []
 
   const taskQueries = useQueries({
     queries: (milestones ?? []).map((m) => ({
@@ -64,7 +82,12 @@ function ProgressPage() {
       ) : (
         <div className="space-y-4">
           {milestones.map((milestone) => (
-            <MilestoneAccordion key={milestone.id} milestone={milestone} />
+            <MilestoneAccordion
+              key={milestone.id}
+              milestone={milestone}
+              members={assignableMembers}
+              guests={guests}
+            />
           ))}
         </div>
       )}

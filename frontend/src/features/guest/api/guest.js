@@ -28,6 +28,20 @@ async function getGuestProject(invitationToken, projectId) {
   return data
 }
 
+async function getGuestMembers(invitationToken, projectId) {
+  const { data } = await guestApiClient.get(`/projects/${projectId}/members`, {
+    guestInvitationToken: invitationToken,
+  })
+  return data
+}
+
+async function getGuestGuests(invitationToken, projectId) {
+  const { data } = await guestApiClient.get(`/projects/${projectId}/guests`, {
+    guestInvitationToken: invitationToken,
+  })
+  return data
+}
+
 async function getGuestMilestones(invitationToken, projectId) {
   const { data } = await guestApiClient.get(`/projects/${projectId}/milestones`, {
     guestInvitationToken: invitationToken,
@@ -51,11 +65,73 @@ async function updateGuestTaskStatus(invitationToken, taskId, statusValue) {
   return data
 }
 
+async function getGuestAttachments(invitationToken, projectId) {
+  const { data } = await guestApiClient.get(`/projects/${projectId}/attachments`, {
+    guestInvitationToken: invitationToken,
+  })
+  return data
+}
+
+async function uploadGuestAttachment(invitationToken, projectId, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await guestApiClient.post(`/projects/${projectId}/attachments`, formData, {
+    guestInvitationToken: invitationToken,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+async function downloadGuestAttachment(invitationToken, projectId, attachmentId) {
+  const { data } = await guestApiClient.get(
+    `/projects/${projectId}/attachments/${attachmentId}/download`,
+    { guestInvitationToken: invitationToken, responseType: 'blob' },
+  )
+  return data
+}
+
+async function deleteGuestAttachment(invitationToken, projectId, attachmentId) {
+  await guestApiClient.delete(`/projects/${projectId}/attachments/${attachmentId}`, {
+    guestInvitationToken: invitationToken,
+  })
+}
+
+async function getGuestComments(invitationToken, projectId) {
+  const { data } = await guestApiClient.get(`/projects/${projectId}/comments`, {
+    guestInvitationToken: invitationToken,
+  })
+  return data
+}
+
+async function postGuestComment(invitationToken, projectId, body) {
+  const { data } = await guestApiClient.post(
+    `/projects/${projectId}/comments`,
+    { body },
+    { guestInvitationToken: invitationToken },
+  )
+  return data
+}
+
+async function deleteGuestComment(invitationToken, projectId, commentId) {
+  await guestApiClient.delete(`/projects/${projectId}/comments/${commentId}`, {
+    guestInvitationToken: invitationToken,
+  })
+}
+
 export {
   guestJoin,
   getGuestSession,
   getGuestProject,
+  getGuestMembers,
+  getGuestGuests,
   getGuestMilestones,
   getGuestTasks,
   updateGuestTaskStatus,
+  getGuestAttachments,
+  uploadGuestAttachment,
+  downloadGuestAttachment,
+  deleteGuestAttachment,
+  getGuestComments,
+  postGuestComment,
+  deleteGuestComment,
 }

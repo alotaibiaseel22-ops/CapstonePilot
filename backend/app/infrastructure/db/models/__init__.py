@@ -1,6 +1,8 @@
 from .activity_event import ActivityEventModel
 from .agent_run import AgentRunModel
 from .approval_decision import ApprovalDecisionModel
+from .attachment import AttachmentBlobModel, AttachmentModel
+from .comment import CommentModel
 from .guest import GuestModel
 from .invitation import InvitationModel
 from .milestone import MilestoneModel
@@ -26,4 +28,7 @@ __all__ = [
     "RecommendationModel",
     "ApprovalDecisionModel",
     "ActivityEventModel",
+    "AttachmentModel",
+    "AttachmentBlobModel",
+    "CommentModel",
 ]

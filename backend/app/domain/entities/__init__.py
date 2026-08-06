@@ -1,6 +1,8 @@
 from .activity_event import ActivityEvent
 from .agent_run import AgentRun
 from .approval_decision import ApprovalDecision
+from .attachment import Attachment
+from .comment import Comment
 from .guest import Guest
 from .invitation import Invitation
 from .milestone import Milestone
@@ -26,4 +28,6 @@ __all__ = [
     "Recommendation",
     "ApprovalDecision",
     "ActivityEvent",
+    "Attachment",
+    "Comment",
 ]

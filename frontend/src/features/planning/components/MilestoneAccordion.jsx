@@ -4,7 +4,7 @@ import { Card } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
 import { Progress } from '@/shared/components/ui/progress'
 import { LoadingState } from '@/shared/components/common/LoadingState'
-import { useTasks, useUpdateTaskStatus } from '../hooks/useTasks'
+import { useTasks, useUpdateTaskStatus, useAssignTask } from '../hooks/useTasks'
 import { TaskRow } from './TaskRow'
 
 function progressTone(value) {
@@ -19,12 +19,13 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function MilestoneAccordion({ milestone, defaultOpen = false }) {
+function MilestoneAccordion({ milestone, defaultOpen = false, members = [], guests = [] }) {
   const [open, setOpen] = useState(defaultOpen)
   // Always fetched (not gated on `open`) so the collapsed header's progress
   // summary is accurate immediately, not just after the user expands it.
   const { data: tasks, isLoading } = useTasks(milestone.id)
   const updateStatus = useUpdateTaskStatus(milestone.id)
+  const assignTask = useAssignTask(milestone.id)
 
   const done = tasks?.filter((t) => t.status === 'done').length ?? 0
   const total = tasks?.length ?? 0
@@ -36,6 +37,7 @@ function MilestoneAccordion({ milestone, defaultOpen = false }) {
     <Card className="overflow-hidden">
       <button
         type="button"
+        data-testid="milestone-accordion-toggle"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-4 p-6 text-left"
       >
@@ -77,6 +79,9 @@ function MilestoneAccordion({ milestone, defaultOpen = false }) {
                 task={task}
                 updating={updateStatus.isPending}
                 onStatusChange={(status) => updateStatus.mutate({ taskId: task.id, status })}
+                members={members}
+                guests={guests}
+                onAssign={(assignee) => assignTask.mutate({ taskId: task.id, ...assignee })}
               />
             ))}
         </div>

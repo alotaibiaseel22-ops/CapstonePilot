@@ -3,7 +3,13 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.schemas.task import TaskCreate, TaskRead, TaskStatusUpdate, TaskUpdate
+from app.api.schemas.task import (
+    TaskAssigneeUpdate,
+    TaskCreate,
+    TaskRead,
+    TaskStatusUpdate,
+    TaskUpdate,
+)
 from app.api.v1.deps import (
     Actor,
     get_activity_service,
@@ -19,6 +25,7 @@ from app.api.v1.deps import (
 from app.application.ports.risk_orchestrator import RiskAnalysisOrchestratorPort
 from app.application.services.activity_service import ActivityService
 from app.application.services.task_service import (
+    InvalidAssigneeError,
     NotTaskAssigneeError,
     TaskNotFoundError,
     TaskService,
@@ -119,6 +126,34 @@ def update_task_status(
         run_immediate_risk_check, session_factory, risk_orchestrator, task_id=task.id
     )
 
+    return TaskRead.model_validate(task)
+
+
+@router.patch("/tasks/{task_id}/assignee", response_model=TaskRead)
+def assign_task(
+    task_id: UUID,
+    payload: TaskAssigneeUpdate,
+    actor: Actor = Depends(require_project_access_for_task()),
+    task_service: TaskService = Depends(get_task_service),
+):
+    """Dedicated assign/unassign action, open to real project members/owners
+    only - matches update_task's existing permissiveness (any member, not
+    owner-only) while keeping guests to their one narrow capability (their
+    own task's status, via update_task_status above)."""
+    if actor.kind == "guest":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Guests cannot reassign tasks"
+        )
+    try:
+        task = task_service.assign_task(
+            task_id,
+            assignee_id=payload.assignee_id,
+            assignee_guest_id=payload.assignee_guest_id,
+        )
+    except TaskNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InvalidAssigneeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return TaskRead.model_validate(task)
 
 

@@ -25,4 +25,9 @@ async function updateTask(taskId, payload) {
   return data
 }
 
-export { getMilestones, createMilestone, getTasks, createTask, updateTask }
+async function assignTask(taskId, payload) {
+  const { data } = await apiClient.patch(`/tasks/${taskId}/assignee`, payload)
+  return data
+}
+
+export { getMilestones, createMilestone, getTasks, createTask, updateTask, assignTask }

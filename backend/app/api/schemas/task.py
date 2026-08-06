@@ -32,6 +32,15 @@ class TaskStatusUpdate(BaseModel):
     status: TaskStatus
 
 
+class TaskAssigneeUpdate(BaseModel):
+    """Dedicated assign/unassign body - unlike TaskUpdate's fields, both are
+    always applied as given (not gated on being non-null), so sending
+    neither actually clears the assignee. See TaskService.assign_task."""
+
+    assignee_id: UUID | None = None
+    assignee_guest_id: UUID | None = None
+
+
 class TaskRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

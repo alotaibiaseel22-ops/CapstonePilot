@@ -13,7 +13,9 @@ from app.application.ports.planning_orchestrator import PlanningOrchestratorPort
 from app.application.ports.risk_orchestrator import RiskAnalysisOrchestratorPort
 from app.application.ports.user_repository import UserRepository
 from app.application.services.activity_service import ActivityService
+from app.application.services.attachment_service import AttachmentService
 from app.application.services.auth_service import AuthService
+from app.application.services.comment_service import CommentService
 from app.application.services.guest_service import (
     GuestAccessRevokedError,
     GuestNotFoundError,
@@ -35,6 +37,10 @@ from app.infrastructure.db.repositories.activity_event_repository import (
     SqlAlchemyActivityEventRepository,
 )
 from app.infrastructure.db.repositories.agent_run_repository import SqlAlchemyAgentRunRepository
+from app.infrastructure.db.repositories.attachment_repository import (
+    SqlAlchemyAttachmentRepository,
+)
+from app.infrastructure.db.repositories.comment_repository import SqlAlchemyCommentRepository
 from app.infrastructure.db.repositories.guest_repository import SqlAlchemyGuestRepository
 from app.infrastructure.db.repositories.invitation_repository import SqlAlchemyInvitationRepository
 from app.infrastructure.db.repositories.milestone_repository import SqlAlchemyMilestoneRepository
@@ -129,6 +135,14 @@ def get_invitation_service(
 
 def get_guest_service(db: Session = Depends(get_db)) -> GuestService:
     return GuestService(SqlAlchemyGuestRepository(db), SqlAlchemyInvitationRepository(db))
+
+
+def get_attachment_service(db: Session = Depends(get_db)) -> AttachmentService:
+    return AttachmentService(SqlAlchemyAttachmentRepository(db))
+
+
+def get_comment_service(db: Session = Depends(get_db)) -> CommentService:
+    return CommentService(SqlAlchemyCommentRepository(db))
 
 
 def get_proposal_analysis_service() -> ProposalAnalysisService:

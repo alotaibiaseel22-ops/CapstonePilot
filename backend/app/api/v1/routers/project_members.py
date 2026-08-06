@@ -2,8 +2,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.api.schemas.guest import GuestRead
 from app.api.schemas.project_member import ProjectMemberRead
-from app.api.v1.deps import get_current_user, get_project_member_service, require_role
+from app.api.v1.deps import (
+    Actor,
+    get_guest_service,
+    get_project_member_service,
+    require_project_access,
+    require_role,
+)
+from app.application.services.guest_service import GuestService
 from app.application.services.project_member_service import (
     CannotRemoveOwnerError,
     NotProjectOwnerError,
@@ -19,10 +27,27 @@ router = APIRouter(tags=["project-members"])
 @router.get("/projects/{project_id}/members", response_model=list[ProjectMemberRead])
 def list_members(
     project_id: UUID,
-    _current_user: User = Depends(get_current_user),
+    _actor: Actor = Depends(require_project_access()),
     member_service: ProjectMemberService = Depends(get_project_member_service),
 ):
+    """Widened from a bare get_current_user to require_project_access so
+    guests can resolve member names for attachment/comment authorship
+    (matches list_guests' Figma-style "everyone can see who else is here"
+    reasoning) - both real members/owner and guests can call this."""
     return [ProjectMemberRead.model_validate(m) for m in member_service.list_members(project_id)]
+
+
+@router.get("/projects/{project_id}/guests", response_model=list[GuestRead])
+def list_guests(
+    project_id: UUID,
+    _actor: Actor = Depends(require_project_access()),
+    guest_service: GuestService = Depends(get_guest_service),
+):
+    """Both real members/owner AND guests can see who else is on the
+    project (Figma-style visibility) - gated by require_project_access
+    rather than list_members' bare get_current_user, so it's correctly
+    project-scoped from day one."""
+    return [GuestRead.model_validate(g) for g in guest_service.list_guests(project_id)]
 
 
 @router.delete("/projects/{project_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

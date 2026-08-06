@@ -14,6 +14,10 @@ class NotTaskAssigneeError(Exception):
     pass
 
 
+class InvalidAssigneeError(Exception):
+    pass
+
+
 class TaskService:
     def __init__(self, task_repository: TaskRepository):
         self._tasks = task_repository
@@ -88,6 +92,26 @@ class TaskService:
             task.assignee_id = None
         if due_date is not None:
             task.due_date = due_date
+        return self._tasks.update(task)
+
+    def assign_task(
+        self,
+        task_id: uuid.UUID,
+        *,
+        assignee_id: uuid.UUID | None,
+        assignee_guest_id: uuid.UUID | None,
+    ) -> Task:
+        """Unlike update_task's fields (which only ever react to a value,
+        never to explicit clearing - see that method's is not None checks),
+        both args here are always applied exactly as given. None means
+        "clear this," so passing both as None actually unassigns the task -
+        something update_task can never do. This is the only way to clear
+        an existing assignee."""
+        if assignee_id is not None and assignee_guest_id is not None:
+            raise InvalidAssigneeError("A task can be assigned to a member or a guest, not both")
+        task = self.get_task(task_id)
+        task.assignee_id = assignee_id
+        task.assignee_guest_id = assignee_guest_id
         return self._tasks.update(task)
 
     def update_status_as_guest(

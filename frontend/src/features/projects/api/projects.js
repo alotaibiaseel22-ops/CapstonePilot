@@ -33,6 +33,11 @@ async function removeProjectMember(projectId, userId) {
   await apiClient.delete(`/projects/${projectId}/members/${userId}`)
 }
 
+async function getProjectGuests(projectId, signal) {
+  const { data } = await apiClient.get(`/projects/${projectId}/guests`, { signal })
+  return data
+}
+
 async function generatePlan(projectId, file) {
   const formData = new FormData()
   formData.append('file', file)
@@ -50,5 +55,6 @@ export {
   deleteProject,
   getProjectMembers,
   removeProjectMember,
+  getProjectGuests,
   generatePlan,
 }

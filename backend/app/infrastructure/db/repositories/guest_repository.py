@@ -44,3 +44,7 @@ class SqlAlchemyGuestRepository(GuestRepository):
     def get_by_id(self, guest_id: UUID) -> Guest | None:
         model = self._session.get(GuestModel, guest_id)
         return _to_entity(model) if model else None
+
+    def list_by_project(self, project_id: UUID) -> list[Guest]:
+        query = self._session.query(GuestModel).filter(GuestModel.project_id == project_id)
+        return [_to_entity(model) for model in query.all()]

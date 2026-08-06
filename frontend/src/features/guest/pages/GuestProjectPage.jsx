@@ -1,19 +1,34 @@
+import { useState } from 'react'
 import { useQueries, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Circle, CircleDot } from 'lucide-react'
+import { CheckCircle2, Circle, CircleDot, Send } from 'lucide-react'
 import { LoadingState } from '@/shared/components/common/LoadingState'
 import { ErrorState } from '@/shared/components/common/ErrorState'
 import { Card } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
 import { Progress } from '@/shared/components/ui/progress'
+import { Textarea } from '@/shared/components/ui/textarea'
+import { Button } from '@/shared/components/ui/button'
 import { useGuestSession } from '@/app/providers/GuestSessionProvider'
 import {
   getGuestProject,
+  getGuestMembers,
+  getGuestGuests,
   getGuestMilestones,
   getGuestTasks,
   updateGuestTaskStatus,
+  getGuestAttachments,
+  uploadGuestAttachment,
+  downloadGuestAttachment,
+  deleteGuestAttachment,
+  getGuestComments,
+  postGuestComment,
+  deleteGuestComment,
 } from '../api/guest'
 import { getApiErrorMessage } from '@/shared/lib/apiError'
 import { cn } from '@/shared/lib/utils'
+import { AttachmentRow } from '@/features/attachments/components/AttachmentRow'
+import { CommentRow } from '@/features/comments/components/CommentRow'
+import { FileUploadZone } from '@/features/projects/components/FileUploadZone'
 
 const statusMeta = {
   pending: { label: 'Pending', tone: 'default', value: 0, icon: Circle },
@@ -64,6 +79,165 @@ function GuestTaskRow({ task, invitationToken, guestId, onSessionInvalid }) {
   )
 }
 
+async function triggerGuestDownload(invitationToken, projectId, attachment) {
+  const blob = await downloadGuestAttachment(invitationToken, projectId, attachment.id)
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = attachment.filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function GuestAttachmentsSection({
+  invitationToken,
+  projectId,
+  guestId,
+  members,
+  guests,
+  onSessionInvalid,
+}) {
+  const queryClient = useQueryClient()
+  const queryKey = ['guest', invitationToken, 'attachments']
+
+  const { data: attachments, isLoading } = useQuery({
+    queryKey,
+    queryFn: () => getGuestAttachments(invitationToken, projectId),
+    enabled: Boolean(projectId),
+  })
+
+  const upload = useMutation({
+    mutationFn: (file) => uploadGuestAttachment(invitationToken, projectId, file),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onError: (err) => {
+      if (err.response?.status === 401) onSessionInvalid()
+    },
+  })
+  const remove = useMutation({
+    mutationFn: (attachmentId) => deleteGuestAttachment(invitationToken, projectId, attachmentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onError: (err) => {
+      if (err.response?.status === 401) onSessionInvalid()
+    },
+  })
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="p-6 pb-0">
+        <h2 className="font-bold text-gray-900">Attachments</h2>
+      </div>
+      <div className="p-6">
+        <FileUploadZone
+          onFilesSelected={(files) => Array.from(files).forEach((f) => upload.mutate(f))}
+          formatsCaption="Max file size: 20 MB"
+        />
+      </div>
+      {isLoading && <LoadingState label="Loading attachments..." />}
+      {!isLoading && attachments.length === 0 && (
+        <p className="border-t border-border px-6 py-4 text-sm text-muted-foreground">
+          No attachments yet.
+        </p>
+      )}
+      {!isLoading &&
+        attachments.map((attachment) => (
+          <AttachmentRow
+            key={attachment.id}
+            attachment={attachment}
+            members={members}
+            guests={guests}
+            currentGuestId={guestId}
+            onDownload={(a) => triggerGuestDownload(invitationToken, projectId, a)}
+            onDelete={(attachmentId) => remove.mutate(attachmentId)}
+            deleting={remove.isPending}
+          />
+        ))}
+    </Card>
+  )
+}
+
+function GuestCommentsSection({
+  invitationToken,
+  projectId,
+  guestId,
+  members,
+  guests,
+  onSessionInvalid,
+}) {
+  const queryClient = useQueryClient()
+  const queryKey = ['guest', invitationToken, 'comments']
+  const [body, setBody] = useState('')
+
+  const { data: comments, isLoading } = useQuery({
+    queryKey,
+    queryFn: () => getGuestComments(invitationToken, projectId),
+    enabled: Boolean(projectId),
+  })
+
+  const post = useMutation({
+    mutationFn: (commentBody) => postGuestComment(invitationToken, projectId, commentBody),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey })
+      setBody('')
+    },
+    onError: (err) => {
+      if (err.response?.status === 401) onSessionInvalid()
+    },
+  })
+  const remove = useMutation({
+    mutationFn: (commentId) => deleteGuestComment(invitationToken, projectId, commentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onError: (err) => {
+      if (err.response?.status === 401) onSessionInvalid()
+    },
+  })
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    const trimmed = body.trim()
+    if (trimmed) post.mutate(trimmed)
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="p-6 pb-0">
+        <h2 className="font-bold text-gray-900">Comments</h2>
+      </div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2 p-6">
+        <Textarea
+          className="min-h-20"
+          placeholder="Write a comment..."
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+        />
+        <Button type="submit" className="self-end" disabled={!body.trim() || post.isPending}>
+          <Send className="size-4" />
+          Post Comment
+        </Button>
+      </form>
+      {isLoading && <LoadingState label="Loading comments..." />}
+      {!isLoading && comments.length === 0 && (
+        <p className="border-t border-border px-6 py-4 text-sm text-muted-foreground">
+          No comments yet - start the discussion.
+        </p>
+      )}
+      {!isLoading &&
+        comments.map((comment) => (
+          <CommentRow
+            key={comment.id}
+            comment={comment}
+            members={members}
+            guests={guests}
+            currentGuestId={guestId}
+            onDelete={(commentId) => remove.mutate(commentId)}
+            deleting={remove.isPending}
+          />
+        ))}
+    </Card>
+  )
+}
+
 function GuestProjectPage() {
   const { invitationToken, session, markSessionInvalid } = useGuestSession()
   const projectId = session?.project_id
@@ -94,6 +268,17 @@ function GuestProjectPage() {
     })),
   })
 
+  const { data: members = [] } = useQuery({
+    queryKey: ['guest', invitationToken, 'members'],
+    queryFn: () => getGuestMembers(invitationToken, projectId),
+    enabled: Boolean(projectId),
+  })
+  const { data: guests = [] } = useQuery({
+    queryKey: ['guest', invitationToken, 'guests'],
+    queryFn: () => getGuestGuests(invitationToken, projectId),
+    enabled: Boolean(projectId),
+  })
+
   const activeError = projectErr ?? milestonesErr
   if (activeError?.response?.status === 401 || activeError?.response?.status === 403) {
     markSessionInvalid()
@@ -111,6 +296,10 @@ function GuestProjectPage() {
   const doneTasks = allTasks.filter((t) => t.status === 'done').length
   const overallPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
   const myTaskCount = allTasks.filter((t) => t.assignee_guest_id === guestId).length
+  // list_members never includes the project owner - without this, an
+  // owner-authored attachment/comment resolves to no match and shows as
+  // "Unknown" (same reasoning as AttachmentsPage.jsx/CommentsPage.jsx).
+  const allMembers = [{ user_id: project.owner_id, name: project.owner_name }, ...members]
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -168,6 +357,23 @@ function GuestProjectPage() {
           })}
         </div>
       )}
+
+      <GuestAttachmentsSection
+        invitationToken={invitationToken}
+        projectId={projectId}
+        guestId={guestId}
+        members={allMembers}
+        guests={guests}
+        onSessionInvalid={markSessionInvalid}
+      />
+      <GuestCommentsSection
+        invitationToken={invitationToken}
+        projectId={projectId}
+        guestId={guestId}
+        members={allMembers}
+        guests={guests}
+        onSessionInvalid={markSessionInvalid}
+      />
     </div>
   )
 }

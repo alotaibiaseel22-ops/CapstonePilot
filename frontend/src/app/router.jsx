@@ -17,6 +17,8 @@ import { ProjectScheduleGate } from '@/features/projects/components/ProjectSched
 import { ProgressPage } from '@/features/planning/pages/ProgressPage'
 import { RisksPage } from '@/features/risks/pages/RisksPage'
 import { RecommendationsPage } from '@/features/recommendations/pages/RecommendationsPage'
+import { AttachmentsPage } from '@/features/attachments/pages/AttachmentsPage'
+import { CommentsPage } from '@/features/comments/pages/CommentsPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 
 const router = createBrowserRouter([
@@ -50,6 +52,8 @@ const router = createBrowserRouter([
           { path: 'projects/:id', element: <ProjectDetailPage /> },
           { path: 'projects/:id/settings', element: <ProjectSettingsPage /> },
           { path: 'projects/:id/progress', element: <ProgressPage /> },
+          { path: 'projects/:id/attachments', element: <AttachmentsPage /> },
+          { path: 'projects/:id/comments', element: <CommentsPage /> },
           // Only the AI monitoring surfaces (Risk Analysis, Recommendations)
           // are gated on having a deadline - Share, Settings, and Plan
           // approval are core project usage, not "monitoring features," and

@@ -7,7 +7,9 @@ import {
   ClipboardList,
   Flag,
   Lightbulb,
+  MessageSquare,
   MoreVertical,
+  Paperclip,
   Pencil,
   Share2,
   ShieldAlert,
@@ -172,6 +174,18 @@ function ProjectDetailPage() {
           <Card className="flex h-full items-center justify-center gap-2 text-blue-600 transition-shadow hover:shadow-md">
             <Lightbulb className="size-5" />
             <span className="font-semibold">View Recommendations</span>
+          </Card>
+        </Link>
+        <Link to={`/projects/${id}/attachments`} className="block">
+          <Card className="flex h-full items-center justify-center gap-2 text-blue-600 transition-shadow hover:shadow-md">
+            <Paperclip className="size-5" />
+            <span className="font-semibold">Attachments</span>
+          </Card>
+        </Link>
+        <Link to={`/projects/${id}/comments`} className="block">
+          <Card className="flex h-full items-center justify-center gap-2 text-blue-600 transition-shadow hover:shadow-md">
+            <MessageSquare className="size-5" />
+            <span className="font-semibold">Comments</span>
           </Card>
         </Link>
       </div>

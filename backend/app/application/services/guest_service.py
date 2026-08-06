@@ -22,6 +22,9 @@ class GuestService:
         self._guests = guest_repository
         self._invitations = invitation_repository
 
+    def list_guests(self, project_id: uuid.UUID) -> list[Guest]:
+        return self._guests.list_by_project(project_id)
+
     def create_guest(self, invitation: Invitation, display_name: str) -> Guest:
         guest = Guest(
             id=uuid.uuid4(),

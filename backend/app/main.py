@@ -10,7 +10,9 @@ from sqlalchemy import text
 from app.api.v1.deps import get_risk_orchestrator, get_session_factory
 from app.api.v1.routers import (
     activity,
+    attachments,
     auth,
+    comments,
     invitations,
     jobs,
     milestones,
@@ -127,6 +129,8 @@ app.include_router(risks.router, prefix="/api/v1")
 app.include_router(recommendations.router, prefix="/api/v1")
 app.include_router(activity.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(attachments.router, prefix="/api/v1")
+app.include_router(comments.router, prefix="/api/v1")
 
 
 @app.get("/health")

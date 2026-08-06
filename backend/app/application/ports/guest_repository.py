@@ -10,3 +10,6 @@ class GuestRepository(ABC):
 
     @abstractmethod
     def get_by_id(self, guest_id: UUID) -> Guest | None: ...
+
+    @abstractmethod
+    def list_by_project(self, project_id: UUID) -> list[Guest]: ...
