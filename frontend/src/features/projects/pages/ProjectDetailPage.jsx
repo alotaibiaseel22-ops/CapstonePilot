@@ -26,7 +26,7 @@ import { DropdownMenu, DropdownMenuItem } from '@/shared/components/ui/dropdown-
 import { ConfirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { useAuth } from '@/app/providers/AuthProvider'
 import { useProject, useDeleteProject, useUpdateProject } from '../hooks/useProjects'
-import { useProjectMembers } from '../hooks/useProjectMembers'
+import { useCollaborators } from '../hooks/useCollaborators'
 import { useMilestones } from '@/features/planning/hooks/useMilestones'
 import { ShareModal } from '../components/ShareModal'
 
@@ -38,7 +38,7 @@ function ProjectDetailPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { data: project, isLoading, isError } = useProject(id)
-  const { data: members } = useProjectMembers(id)
+  const { collaborators, isLoading: collaboratorsLoading } = useCollaborators(id)
   const { data: milestones } = useMilestones(id)
   const deleteProject = useDeleteProject()
   const updateProject = useUpdateProject(id)
@@ -150,7 +150,12 @@ function ProjectDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Users} tone="purple" value={members?.length ?? '—'} label="Collaborators" />
+        <StatCard
+          icon={Users}
+          tone="purple"
+          value={collaboratorsLoading ? '—' : collaborators.length}
+          label="Collaborators"
+        />
         <StatCard icon={Flag} tone="blue" value={milestones?.length ?? '—'} label="Milestones" />
         <StatCard
           icon={CalendarClock}

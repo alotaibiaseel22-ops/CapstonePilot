@@ -9,6 +9,7 @@ import { Button } from '@/shared/components/ui/button'
 import { DropdownMenu, DropdownMenuItem } from '@/shared/components/ui/dropdown-menu'
 import { useAuth } from '@/app/providers/AuthProvider'
 import { useProjectMembers, useRemoveProjectMember } from '../hooks/useProjectMembers'
+import { useProjectGuests } from '../hooks/useProjectGuests'
 import {
   useProjectInvitations,
   useResendInvitation,
@@ -72,7 +73,7 @@ function AccessRow({ name, email, isYou, badge, badgeVariant, menu }) {
             {name || email}
             {isYou && <span className="font-normal text-muted-foreground"> (You)</span>}
           </p>
-          {name && <p className="truncate text-xs text-muted-foreground">{email}</p>}
+          {email && <p className="truncate text-xs text-muted-foreground">{email}</p>}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -88,6 +89,7 @@ function ShareModal({ open, onClose, project }) {
   const isOwner = user?.id === project.owner_id
 
   const { data: members, isLoading: membersLoading } = useProjectMembers(project.id)
+  const { data: guests, isLoading: guestsLoading } = useProjectGuests(project.id)
   const { data: invitations, isLoading: invitationsLoading } = useProjectInvitations(project.id)
   const removeMember = useRemoveProjectMember(project.id)
   const resendInvitation = useResendInvitation(project.id)
@@ -238,9 +240,43 @@ function ShareModal({ open, onClose, project }) {
                   />
                 )
               })}
+
+              {guestsLoading && (
+                <p className="py-3 text-sm text-muted-foreground">Loading guests...</p>
+              )}
+
+              {guests?.map((guest) => (
+                <AccessRow
+                  key={guest.id}
+                  name={guest.display_name}
+                  isYou={false}
+                  badge="Guest"
+                  badgeVariant="info"
+                  menu={
+                    <RowMenu label={`Actions for ${guest.display_name}`}>
+                      <DropdownMenuItem
+                        icon={User}
+                        onClick={() =>
+                          setViewingProfile({
+                            name: guest.display_name,
+                            badge: 'Guest',
+                            badgeVariant: 'info',
+                            joinedAt: guest.created_at,
+                          })
+                        }
+                      >
+                        View Profile
+                      </DropdownMenuItem>
+                    </RowMenu>
+                  }
+                />
+              ))}
             </div>
 
-            {!membersLoading && members?.length === 0 && (
+            {!membersLoading &&
+              !guestsLoading &&
+              members?.length === 0 &&
+              guests?.length === 0 && (
               <p className="mt-3 text-sm text-muted-foreground">
                 Only you have access to this project. Share the invite link to start
                 collaborating.

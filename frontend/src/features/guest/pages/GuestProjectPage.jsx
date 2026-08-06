@@ -72,7 +72,11 @@ function GuestTaskRow({ task, invitationToken, guestId, onSessionInvalid }) {
       <p className={cn('flex-1 text-sm text-gray-800', done && 'text-muted-foreground line-through')}>
         {task.title}
       </p>
-      {isMine && <Badge variant="info">Assigned to you</Badge>}
+      {isMine ? (
+        <Badge variant="info">Assigned to you</Badge>
+      ) : (
+        <span className="shrink-0 text-xs text-muted-foreground">Not assigned to you</span>
+      )}
       <Badge variant={meta.tone}>{meta.label}</Badge>
       <Progress value={meta.value} className="w-20" />
     </div>

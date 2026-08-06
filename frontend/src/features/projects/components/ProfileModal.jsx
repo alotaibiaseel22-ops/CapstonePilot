@@ -28,7 +28,7 @@ function ProfileModal({ profile, onClose }) {
           <Avatar initials={initialsOf(profile.name || profile.email)} className="size-16 text-lg" />
           <div>
             <p className="text-lg font-semibold text-gray-900">{profile.name || profile.email}</p>
-            <p className="text-sm text-muted-foreground">{profile.email}</p>
+            {profile.email && <p className="text-sm text-muted-foreground">{profile.email}</p>}
           </div>
           <Badge variant={profile.badgeVariant}>{profile.badge}</Badge>
           {profile.joinedAt && (

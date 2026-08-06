@@ -155,7 +155,14 @@ test.describe.serial('CapstonePilot end-to-end', () => {
     await page.getByRole('button', { name: 'Share' }).click()
     const modal = page.getByRole('dialog', { name: 'Share Project' })
 
-    await expect(modal.locator('[data-testid="access-row"]').filter({ hasText: 'E2E Guest' })).toHaveCount(0)
+    // The guest DOES appear in the Share modal (it lists every collaborator -
+    // owner, members, and guests - see collaborators.spec.js), but strictly
+    // under a "Guest" badge, never a "Member" one, since joining via the
+    // shareable link never inserts a project_members row.
+    const guestRow = modal.locator('[data-testid="access-row"]').filter({ hasText: 'E2E Guest' })
+    await expect(guestRow).toHaveCount(1)
+    await expect(guestRow.getByText('Guest', { exact: true })).toBeVisible()
+    await expect(guestRow.getByText('Member', { exact: true })).toHaveCount(0)
     await page.keyboard.press('Escape')
   })
 
